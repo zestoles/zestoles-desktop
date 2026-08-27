@@ -200,7 +200,8 @@ class TestCommandClassification(unittest.TestCase):
     def test_catastrophic_commands_are_refused_not_offered(self):
         for command in ("format c:", "diskpart", "shutdown /s /t 0",
                         "reg delete HKLM\\Software\\X", "vssadmin delete shadows",
-                        "Set-MpPreference -DisableRealtimeMonitoring $true"):
+                        "Set-MpPreference -DisableRealtimeMonitoring $true",
+                        "rm -rf /", "rm -r -f /"):
             with self.subTest(command=command):
                 self.assertEqual(classify_command(command), HIGH)
                 self.assertTrue(refuses(command), f"{command} reddedilmeliydi")

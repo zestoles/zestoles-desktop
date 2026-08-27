@@ -71,7 +71,9 @@ _NEVER_RUN = (
     re.compile(r"\bformat\s+[a-z]:", re.I),
     re.compile(r"\bdiskpart\b", re.I),
     re.compile(r"\bmkfs(\.\w+)?\b", re.I),
-    re.compile(r"\brm\s+(-[a-z]*[rf][a-z]*\s+)+/(\s|$)", re.I),
+    # Bounded option groups keep the root-delete guard linear even for hostile
+    # input such as thousands of repeated flags. Any flagged `rm /` is refused.
+    re.compile(r"\brm\s+(?:-[a-z]+\s+){1,4}/(?:\s|$)", re.I),
     re.compile(r"\bdel\s+/[sq]\b.*\\\*", re.I),
     re.compile(r"\bshutdown\b|\bReset-Computer\b|\bRestart-Computer\b", re.I),
     re.compile(r"\bcipher\s+/w\b", re.I),

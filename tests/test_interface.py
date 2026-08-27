@@ -195,8 +195,12 @@ class TestTheScriptActuallyRuns(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.node = shutil.which("node")
-        cls.script = re.search(r"<script>(.*)</script>",
-                               PAGE.read_text(encoding="utf-8"), re.S).group(1)
+        page = PAGE.read_text(encoding="utf-8")
+        _, opening, remainder = page.partition("<script>")
+        script, closing, _ = remainder.rpartition("</script>")
+        if not opening or not closing:
+            raise AssertionError("arayüz script bloğu bulunamadı")
+        cls.script = script
 
     def run_node(self, source, timeout=30):
         with tempfile.TemporaryDirectory() as tmp:
