@@ -8,6 +8,5 @@
    ve başarısızlık durumunu pull request açıklamasında belirtin.
 5. Arayüz değişikliklerinde ekran görüntüsü; davranış değişikliklerinde test ekleyin.
 
-Katkı göndermek, seçilecek proje lisansı kapsamında katkı verme hakkına sahip
-olduğunuzu beyan eder. Lisans seçilene kadar katkı kabulü depo sahibinin kararına
-bağlıdır.
+Katkı göndermek, katkıyı projenin [MIT Lisansı](LICENSE) kapsamında yayımlama
+hakkına sahip olduğunuzu ve bu kapsamda dağıtılmasına izin verdiğinizi beyan eder.
