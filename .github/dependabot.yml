@@ -15,3 +15,15 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    # Keep the major versions used by GitHub's current official examples.
+    # Minor and patch security/maintenance updates remain enabled.
+    ignore:
+      - dependency-name: actions/checkout
+        update-types:
+          - version-update:semver-major
+      - dependency-name: actions/setup-python
+        update-types:
+          - version-update:semver-major
+      - dependency-name: actions/dependency-review-action
+        update-types:
+          - version-update:semver-major
