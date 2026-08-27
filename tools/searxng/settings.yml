@@ -1,0 +1,38 @@
+# SearXNG settings for JARVIS.
+#
+# Two entries here are load-bearing and are the usual reason the provider goes
+# quiet after a working install:
+#
+#   search.formats must include json. The stock configuration serves HTML only and
+#   answers 403 to the JSON endpoint, which looks exactly like the service being
+#   down.
+#
+#   server.limiter must be false. The rate limiter is meant for public instances
+#   and blocks scripted clients — including this one — on the grounds that they are
+#   not browsers.
+#
+# Both are safe here only because the instance is bound to loopback. If you ever
+# expose it beyond this machine, turn the limiter back on.
+
+use_default_settings: true
+
+server:
+  secret_key: "62419087f5f1743b31371aa017d2e10bc0fff5de17e41f8f10810c6afb092e96"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true
+
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 12.0
+  pool_connections: 30
+  pool_maxsize: 10

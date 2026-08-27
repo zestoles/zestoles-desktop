@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZESTOLES · Control Center</title>
+<!--
+  ZESTOLES Control Center.
+
+  One file, no dependencies, no build step. Not minimalism for its own sake: a
+  page with a dependency tree is a page that stops opening in two years, and this
+  one is meant to sit on a second monitor for a long time.
+
+  It consumes the S7 protocol and invents nothing. Every number on screen arrived
+  over the socket; when the socket is down the panels go dark and say so rather
+  than showing the last value as if it were current. There is no demo mode.
+-->
+<style>
+  :root {
+    --bg: #05070a;
+    --panel: rgba(255,255,255,0.022);
+    --line: rgba(255,255,255,0.07);
+    --text: #d7dee8;
+    --muted: #63707f;
+    --faint: #3a444f;
+    --accent: #4da3d4;
+    --accent-soft: rgba(77,163,212,0.14);
+    --warn: #d9a441;
+    --bad: #d15b5b;
+    --good: #5aa87c;
+    --pulse: 5s;
+  }
+
+  /* State drives colour and tempo. Nothing else changes; a UI that rearranges
+     itself when the system changes activity is a UI you cannot read at a glance. */
+  body[data-activity="idle"]             { --accent:#3f6f8c; --accent-soft:rgba(63,111,140,.12); --pulse:7s; }
+  body[data-activity="listening"]        { --accent:#4da3d4; --accent-soft:rgba(77,163,212,.16); --pulse:3.2s; }
+  body[data-activity="thinking"]         { --accent:#8b7fd4; --accent-soft:rgba(139,127,212,.16); --pulse:2s; }
+  body[data-activity="researching"]      { --accent:#4bb3a5; --accent-soft:rgba(75,179,165,.16); --pulse:3s; }
+  body[data-activity="coding"]           { --accent:#c79a4e; --accent-soft:rgba(199,154,78,.16); --pulse:2.4s; }
+  body[data-activity="experimenting"]    { --accent:#6aab72; --accent-soft:rgba(106,171,114,.16); --pulse:2.6s; }
+  body[data-activity="autonomous"]       { --accent:#5c6fc4; --accent-soft:rgba(92,111,196,.15); --pulse:6s; }
+  body[data-activity="waiting_for_user"] { --accent:#d9a441; --accent-soft:rgba(217,164,65,.16); --pulse:1.6s; }
+  body[data-activity="error"]            { --accent:#d15b5b; --accent-soft:rgba(209,91,91,.18); --pulse:1.3s; }
+  body.offline { --accent:#4a5560; --accent-soft:rgba(74,85,96,.10); --pulse:12s; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 400 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid;
+    grid-template-rows: 52px 1fr;
+    overflow: hidden;
+    transition: --accent 1.2s;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 70% 55% at 50% 42%, var(--accent-soft), transparent 70%);
+    transition: background 1.6s ease;
+  }
+
+  .label { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------------ top */
+  header {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; gap: 28px;
+    padding: 0 26px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(5,7,10,.6);
+    backdrop-filter: blur(8px);
+  }
+  .brand { display:flex; align-items:center; gap:10px; font-size: 13px; letter-spacing: .42em; font-weight: 500; color: var(--text); }
+  .brand img { width:28px; height:28px; object-fit:contain; filter:drop-shadow(0 0 9px rgba(77,163,212,.45)); }
+  .brand span { color: var(--accent); transition: color 1.2s; }
+  .top-item { display: flex; align-items: baseline; gap: 8px; }
+  .top-item b { font-weight: 500; font-size: 12.5px; color: var(--text); }
+  .spacer { flag: 1; margin-left: auto; }
+  .link { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot.on  { background: var(--good); box-shadow: 0 0 0 3px rgba(90,168,124,.14); }
+  .dot.off { background: var(--bad);  box-shadow: 0 0 0 3px rgba(209,91,91,.14); }
+  .dot.wait{ background: var(--warn); box-shadow: 0 0 0 3px rgba(217,164,65,.14); }
+
+  /* ----------------------------------------------------------------- grid */
+  main {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(300px, 22vw) 1fr minmax(310px, 23vw);
+    height: 100%;
+    min-height: 0;
+  }
+  section { min-height: 0; display: flex; flex-direction: column; }
+  .left  { border-right: 1px solid var(--line); }
+  .right { border-left: 1px solid var(--line); overflow-y: auto; }
+  .head {
+    padding: 15px 20px 11px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+
+  /* ------------------------------------------------------------------ orb */
+  .stage {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 26px; padding: 20px;
+  }
+  .orb { width: min(46vh, 30vw, 420px); aspect-ratio: 1; overflow: visible; }
+  .halo { fill: var(--accent-soft); transform-origin: 120px 120px; animation: breathe var(--pulse) ease-in-out infinite; }
+  .ring { fill: none; stroke: var(--accent); stroke-linecap: round; transform-origin: 120px 120px; transition: stroke 1.2s; }
+  .r1 { stroke-width: 1.1; stroke-dasharray: 30 9 5 14 34 24; opacity: .8;  animation: spin calc(var(--pulse) * 3.4) linear infinite; }
+  .r2 { stroke-width: .9;  stroke-dasharray: 16 7 44 11 20 13; opacity: .5; animation: spin calc(var(--pulse) * 2.3) linear infinite reverse; }
+  .r3 { stroke-width: .7;  stroke-dasharray: 9 6;               opacity: .32; animation: spin calc(var(--pulse) * 5) linear infinite; }
+  .tick { stroke: var(--accent); stroke-width: 1.6; opacity: .38; stroke-linecap: round; }
+  .core { fill: var(--accent); opacity: .88; transform-origin: 120px 120px; animation: breathe calc(var(--pulse) * .62) ease-in-out infinite; transition: fill 1.2s; }
+  .wave { fill: none; stroke: var(--accent); stroke-width: 1.4; opacity: 0; transition: opacity .5s; }
+  .pulse-ring { fill: none; stroke: var(--accent); stroke-width: 1.4; transform-origin: 120px 120px; animation: outward calc(var(--pulse) * .62) ease-out infinite; }
+
+  body[data-activity="listening"] .wave { opacity: .85; animation: sway 1.7s ease-in-out infinite; }
+  body.offline .core { opacity: .3; }
+  body.offline .halo { opacity: .35; }
+
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: .88; } 50% { transform: scale(1.055); opacity: .6; } }
+  @keyframes outward { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(2.7); opacity: 0; } }
+  @keyframes sway    { 0%,100% { transform: scaleY(.55); } 50% { transform: scaleY(1.25); } }
+  @keyframes fadein  { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .status-line { text-align: center; }
+  .activity {
+    font-size: 21px; letter-spacing: .32em; text-transform: uppercase;
+    font-weight: 300; color: var(--accent); transition: color 1.2s;
+  }
+  .detail { margin-top: 9px; font-size: 12.5px; color: var(--muted); min-height: 19px;
+            max-width: 46ch; margin-inline: auto; }
+
+  /* --------------------------------------------------------------- stream */
+  .stream { flex: 1; overflow-y: auto; padding: 0 14px 18px 20px; }
+  .row {
+    display: grid; grid-template-columns: 52px 1fr; gap: 10px;
+    padding: 7px 0; border-top: 1px solid rgba(255,255,255,.035);
+    animation: fadein .3s ease;
+  }
+  .row:first-child { border-top: 0; }
+  .row time { font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .row .what { font-size: 11px; letter-spacing: .07em; color: var(--accent); text-transform: uppercase; }
+  .row .msg  { font-size: 12.5px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+  .row.lvl-error .what { color: var(--bad); }
+  .row.lvl-warn  .what { color: var(--warn); }
+  .row.lvl-success .what { color: var(--good); }
+
+  /* ---------------------------------------------------------------- right */
+  .card { padding: 15px 20px 18px; border-top: 1px solid var(--line); }
+  .card:first-child { border-top: 0; }
+  .card h2 { font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+             color: var(--muted); font-weight: 500; margin-bottom: 11px; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3.5px 0; font-size: 12.5px; }
+  .kv span { color: var(--muted); }
+  .kv b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+  .now { font-size: 13.5px; color: var(--text); line-height: 1.45; min-height: 20px; }
+  .none { color: var(--faint); font-style: italic; }
+
+  .meter { margin: 9px 0 2px; }
+  .meter .top { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+  .meter .top span { color: var(--muted); }
+  .meter .top b { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .bar { height: 3px; background: rgba(255,255,255,.055); border-radius: 2px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent);
+           border-radius: 2px; transition: width .6s ease, background 1.2s; }
+  .bar.hot i { background: var(--warn); }
+  .bar.crit i { background: var(--bad); }
+
+  /* The graph area is reserved, not faked. It draws the counts memory actually
+     reports; with too few notes to be a graph it says so instead of inventing
+     nodes to look busy. */
+  .graph { height: 168px; position: relative; }
+  .graph canvas { width: 100%; height: 100%; display: block; }
+  .graph .empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: 11.5px; color: var(--faint); padding: 0 24px; line-height: 1.6;
+  }
+
+  .banner {
+    display: none; margin: 0 20px 14px; padding: 9px 13px;
+    border: 1px solid rgba(209,91,91,.3); border-radius: 4px;
+    background: rgba(209,91,91,.07); color: #e79191; font-size: 12px;
+  }
+  body.offline .banner.offline-note { display: block; }
+
+  ::-webkit-scrollbar { width: 7px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.07); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .halo, .ring, .core, .pulse-ring, .wave, .row { animation: none !important; }
+  }
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr auto auto; }
+    .left { border-right: 0; border-bottom: 1px solid var(--line); order: 2; max-height: 30vh; }
+    .stage { order: 1; }
+    .right { border-left: 0; order: 3; }
+  }
+</style>
+</head>
+<body data-activity="idle" class="offline">
+
+<header>
+  <div class="brand"><img src="/assets/zestoles-mark.png" alt=""><span>ZESTOLES</span></div>
+  <div class="top-item"><span class="label">durum</span><b id="t-state">—</b></div>
+  <div class="top-item"><span class="label">mod</span><b id="t-mode">—</b></div>
+  <div class="top-item"><span class="label">döngü</span><b id="t-loop">—</b></div>
+  <div class="top-item"><span class="label">açık</span><b id="t-uptime" class="num">—</b></div>
+  <div class="spacer" style="margin-left:auto"></div>
+  <div class="top-item"><span class="label">olay</span><b id="t-seq" class="num">0</b></div>
+  <div class="link"><span class="dot off" id="t-dot"></span><span id="t-link">bağlanıyor…</span></div>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------- left -->
+  <section class="left">
+    <div class="head"><span class="label">canlı akış</span><span class="label num" id="s-count">0</span></div>
+    <div class="banner offline-note">Bağlantı yok. Gösterilen değerler son bilinen durumdur; canlı değildir.</div>
+    <div class="stream" id="stream"></div>
+  </section>
+
+  <!-- ------------------------------------------------------------ centre -->
+  <section class="stage">
+    <svg class="orb" viewBox="0 0 240 240" role="img" aria-labelledby="orb-title">
+      <title id="orb-title">ZESTOLES çekirdeği — mevcut duruma göre değişir</title>
+      <circle class="halo" cx="120" cy="120" r="94"/>
+      <circle class="ring r1" cx="120" cy="120" r="88"/>
+      <circle class="ring r2" cx="120" cy="120" r="69"/>
+      <circle class="ring r3" cx="120" cy="120" r="51"/>
+      <g class="tick">
+        <line x1="120" y1="16" x2="120" y2="27"/><line x1="224" y1="120" x2="213" y2="120"/>
+        <line x1="120" y1="224" x2="120" y2="213"/><line x1="16" y1="120" x2="27" y2="120"/>
+      </g>
+      <circle class="pulse-ring" cx="120" cy="120" r="27"/>
+      <circle class="core" cx="120" cy="120" r="27"/>
+      <g class="wave">
+        <line x1="107" y1="112" x2="107" y2="128" style="transform-origin:107px 120px"/>
+        <line x1="114" y1="106" x2="114" y2="134" style="transform-origin:114px 120px"/>
+        <line x1="121" y1="102" x2="121" y2="138" style="transform-origin:121px 120px"/>
+        <line x1="128" y1="106" x2="128" y2="134" style="transform-origin:128px 120px"/>
+        <line x1="135" y1="112" x2="135" y2="128" style="transform-origin:135px 120px"/>
+      </g>
+    </svg>
+    <div class="status-line">
+      <div class="activity" id="c-activity">bağlanıyor</div>
+      <div class="detail" id="c-detail">arka uç aranıyor…</div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------- right -->
+  <section class="right">
+    <div class="card">
+      <h2>şu an</h2>
+      <div class="now" id="r-now"><span class="none">boşta</span></div>
+    </div>
+
+    <div class="card">
+      <h2>görev kuyruğu</h2>
+      <div id="r-queue"><div class="kv"><span>—</span><b>—</b></div></div>
+      <div class="kv" style="margin-top:6px"><span>tamamlanan</span><b id="r-done">—</b></div>
+      <div class="kv"><span>başarısız</span><b id="r-failed">—</b></div>
+    </div>
+
+    <div class="card">
+      <h2>ajanlar</h2>
+      <div class="kv"><span>model</span><b id="r-agent-model">—</b></div>
+      <div class="kv"><span>roller</span><b id="r-agent-roles">—</b></div>
+      <div class="kv"><span>beceriler</span><b id="r-skills">—</b></div>
+      <div class="kv"><span>son ajan olayı</span><b id="r-agent-last">—</b></div>
+    </div>
+
+    <div class="card">
+      <h2>makine</h2>
+      <div class="meter"><div class="top"><span>CPU</span><b id="m-cpu">—</b></div>
+        <div class="bar" id="b-cpu"><i></i></div></div>
+      <div class="meter"><div class="top"><span>RAM</span><b id="m-ram">—</b></div>
+        <div class="bar" id="b-ram"><i></i></div></div>
+      <div class="meter"><div class="top"><span>GPU</span><b id="m-gpu">—</b></div>
+        <div class="bar" id="b-gpu"><i></i></div></div>
+      <div class="meter"><div class="top"><span>VRAM</span><b id="m-vram">—</b></div>
+        <div class="bar" id="b-vram"><i></i></div></div>
+    </div>
+
+    <div class="card">
+      <h2>hafıza</h2>
+      <div class="graph">
+        <canvas id="graph"></canvas>
+        <div class="empty" id="graph-empty">grafik için yeterli not yok<br>gerçek veri biriktikçe dolacak</div>
+      </div>
+      <div class="kv"><span>not</span><b id="r-notes">—</b></div>
+      <div class="kv"><span>vektörlü parça</span><b id="r-vectors">—</b></div>
+      <div class="kv"><span>oturum</span><b id="r-sessions">—</b></div>
+    </div>
+
+    <div class="card">
+      <h2>laboratuvar</h2>
+      <div class="kv"><span>deneyler</span><b id="r-exp">—</b></div>
+      <div class="kv"><span>hipotezler</span><b id="r-hyp">—</b></div>
+      <div class="kv"><span>kendi kodunu değiştirme</span><b id="r-selfmod">—</b></div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+(function () {
+  // ---------------------------------------------------------------- config
+  var WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") +
+               (location.host || "127.0.0.1:8797") + "/";
+  var MAX_ROWS = 150;          // DOM stays small; the log is the source of truth
+  var BACKOFF_MIN = 800;
+  var BACKOFF_MAX = 15000;
+  var OFFLINE_AFTER = 45000;   // no frame at all for this long ⇒ treat as down
+
+  // Wire types → what the stream shows. Unknown types are still displayed, with
+  // their raw name: an event nobody labelled is better seen than swallowed.
+  var LABEL = {
+    system_state_changed: "durum", agent_started: "ajan başladı",
+    agent_finished: "ajan bitti", task_started: "görev başladı",
+    task_finished: "görev bitti", research_started: "araştırma başladı",
+    research_source_found: "kaynak", research_finished: "araştırma bitti",
+    experiment_started: "deney başladı", experiment_finished: "deney bitti",
+    benchmark_started: "ölçüm başladı", benchmark_finished: "ölçüm bitti",
+    promotion_candidate: "terfi adayı", promotion_completed: "terfi etti",
+    rollback: "geri alındı", memory_created: "hafıza yazıldı",
+    memory_recalled: "hafıza çağrıldı",
+    self_improvement_started: "iyileştirme başladı",
+    self_improvement_finished: "iyileştirme bitti",
+    error: "hata", waiting_for_user: "kullanıcı bekleniyor",
+    assistant_turn_started: "istek geldi",
+    assistant_turn_finished: "istek bitti",
+    tool_started: "araç başladı", tool_finished: "araç bitti",
+    voice_clips: "ses parçası",
+    dropped: "mesaj kaybı", heartbeat: "", snapshot: ""
+  };
+  var ACTIVITY_TR = {
+    idle: "boşta", listening: "dinliyor", thinking: "düşünüyor",
+    researching: "araştırıyor", coding: "kod yazıyor", autonomous: "otonom",
+    experimenting: "deney yapıyor", waiting_for_user: "seni bekliyor",
+    error: "hata"
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var body = document.body;
+
+  var state = {
+    socket: null, lastSeq: 0, attempt: 0, connected: false,
+    lastFrame: 0, gaps: 0, dropped: 0, events: 0, timer: null, lastResync: 0
+  };
+
+  // Panels that change rarely — queue depth, skill count, experiment tallies —
+  // have no event of their own; they are read from the snapshot. Asking for one
+  // on every event would flood a busy minute, so requests are throttled: often
+  // after something happened, rarely when nothing is.
+  function requestResync(minGapMs) {
+    var now = Date.now();
+    if (now - state.lastResync < minGapMs) return;
+    state.lastResync = now;
+    send({ op: "resync" });
+  }
+
+  // ------------------------------------------------------------ formatting
+  function clock(ts) {
+    var d = new Date((ts || Date.now() / 1000) * 1000);
+    return String(d.getHours()).padStart(2, "0") + ":" +
+           String(d.getMinutes()).padStart(2, "0") + ":" +
+           String(d.getSeconds()).padStart(2, "0");
+  }
+  function duration(seconds) {
+    if (seconds == null) return "—";
+    var s = Math.floor(seconds);
+    if (s < 60) return s + "s";
+    if (s < 3600) return Math.floor(s / 60) + "dk";
+    var h = Math.floor(s / 3600);
+    return h + "sa " + Math.floor((s % 3600) / 60) + "dk";
+  }
+  function counts(obj) {
+    if (!obj || typeof obj !== "object") return "—";
+    var parts = Object.keys(obj).map(function (k) { return k + " " + obj[k]; });
+    return parts.length ? parts.join(" · ") : "—";
+  }
+
+  function meter(barId, textId, value, text) {
+    var bar = $(barId), out = $(textId);
+    if (!bar || !out) return;
+    if (value == null || isNaN(value)) {
+      out.textContent = "—";
+      bar.firstElementChild.style.width = "0%";
+      bar.className = "bar";
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, value));
+    out.textContent = text != null ? text : pct.toFixed(0) + "%";
+    bar.firstElementChild.style.width = pct + "%";
+    bar.className = "bar" + (pct >= 90 ? " crit" : pct >= 70 ? " hot" : "");
+  }
+
+  // ---------------------------------------------------------------- render
+  function applyActivity(activity, detail) {
+    var known = Object.prototype.hasOwnProperty.call(ACTIVITY_TR, activity);
+    body.dataset.activity = known ? activity : "idle";
+    $("c-activity").textContent = known ? ACTIVITY_TR[activity] : (activity || "—");
+    $("t-state").textContent = known ? ACTIVITY_TR[activity] : "—";
+    if (detail !== undefined) $("c-detail").textContent = detail || "";
+  }
+
+  function applySnapshot(payload) {
+    var st = payload && payload.state;
+    if (!st) return;
+    var sec = st.sections || {};
+    var get = function (name) {
+      return (sec[name] && sec[name].data) ? sec[name].data : {};
+    };
+
+    applyActivity(st.activity, st.activity_detail);
+    $("t-uptime").textContent = duration(st.uptime_s);
+
+    var autonomy = get("autonomy");
+    $("t-mode").textContent = autonomy.mod && autonomy.mod !== "—" ? autonomy.mod : "—";
+    $("t-loop").textContent = autonomy.calisiyor
+      ? (autonomy.duraklatildi ? "duraklatıldı" : "çalışıyor") : "durdu";
+    $("r-done").textContent = autonomy.tamamlanan != null ? autonomy.tamamlanan : "—";
+    $("r-failed").textContent = autonomy.basarisiz != null ? autonomy.basarisiz : "—";
+    renderQueue(autonomy.kuyruk);
+    if (autonomy.aktif_gorev) setNow(autonomy.aktif_gorev);
+
+    var agents = get("agents");
+    $("r-agent-model").textContent = agents.model || "—";
+    $("r-agent-roles").textContent = Array.isArray(agents.roller) ? agents.roller.length : "—";
+    $("r-skills").textContent = agents.beceriler != null ? agents.beceriler : "—";
+
+    var memory = get("memory");
+    $("r-notes").textContent = memory.notlar != null ? memory.notlar : "—";
+    $("r-vectors").textContent = memory.vektorlu != null ? memory.vektorlu : "—";
+    $("r-sessions").textContent = memory.oturumlar != null ? memory.oturumlar : "—";
+    drawGraph(memory);
+
+    var lab = get("lab");
+    $("r-exp").textContent = counts(lab.deneyler);
+    $("r-selfmod").textContent = lab.kendi_kodunu_degistirme ? "AÇIK" : "kapalı";
+
+    var improve = get("improve");
+    $("r-hyp").textContent = counts(improve.hipotezler);
+
+    applyResources(get("system").resources);
+  }
+
+  function applyResources(res) {
+    if (!res) return;
+    meter("b-cpu", "m-cpu", res.cpu);
+    meter("b-ram", "m-ram", res.ram);
+    meter("b-gpu", "m-gpu", res.gpu);
+    if (res.vram_total_mb) {
+      var pct = (res.vram_used_mb / res.vram_total_mb) * 100;
+      meter("b-vram", "m-vram", pct,
+            (res.vram_used_mb / 1024).toFixed(1) + " / " +
+            (res.vram_total_mb / 1024).toFixed(1) + " GB");
+    } else {
+      meter("b-vram", "m-vram", null);
+    }
+  }
+
+  function renderQueue(queue) {
+    var host = $("r-queue");
+    host.textContent = "";
+    var keys = queue ? Object.keys(queue) : [];
+    if (!keys.length) {
+      var none = document.createElement("div");
+      none.className = "kv";
+      none.innerHTML = '<span class="none">kuyruk boş</span>';
+      host.appendChild(none);
+      return;
+    }
+    keys.sort().forEach(function (k) {
+      var row = document.createElement("div");
+      row.className = "kv";
+      var name = document.createElement("span");
+      name.textContent = k;
+      var val = document.createElement("b");
+      val.textContent = queue[k];
+      row.appendChild(name); row.appendChild(val);
+      host.appendChild(row);
+    });
+  }
+
+  function setNow(text) {
+    var host = $("r-now");
+    host.textContent = "";
+    if (!text) { host.innerHTML = '<span class="none">boşta</span>'; return; }
+    host.textContent = text;
+  }
+
+  function pushRow(envelope) {
+    var label = LABEL[envelope.type];
+    if (label === "") return;                       // protocol frames stay silent
+    var payload = envelope.payload || {};
+    var text = payload.label || payload.detail || payload.activity || "";
+    if (envelope.type === "dropped") {
+      text = payload.count + " mesaj kaçırıldı — durum yeniden alınıyor";
+    }
+    if (envelope.type === "system_state_changed" && payload.telemetry) return;
+
+    var stream = $("stream");
+    var row = document.createElement("div");
+    row.className = "row lvl-" + (payload.level || "info");
+    var time = document.createElement("time");
+    time.textContent = clock(envelope.ts);
+    var block = document.createElement("div");
+    var what = document.createElement("div");
+    what.className = "what";
+    what.textContent = label || envelope.type;
+    var msg = document.createElement("div");
+    msg.className = "msg";
+    msg.textContent = text;
+    block.appendChild(what);
+    if (text) block.appendChild(msg);
+    row.appendChild(time); row.appendChild(block);
+
+    stream.insertBefore(row, stream.firstChild);
+    while (stream.childNodes.length > MAX_ROWS) stream.removeChild(stream.lastChild);
+
+    state.events += 1;
+    $("s-count").textContent = state.events;
+  }
+
+  // The reserved graph area, drawn from what memory actually reports. No node is
+  // invented; below three notes it says there is not enough yet.
+  function drawGraph(memory) {
+    var canvas = $("graph"), empty = $("graph-empty");
+    var notes = memory && memory.notlar ? memory.notlar : 0;
+    if (notes < 3) { canvas.style.display = "none"; empty.style.display = "flex"; return; }
+    canvas.style.display = "block"; empty.style.display = "none";
+
+    var ratio = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * ratio; canvas.height = h * ratio;
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var accent = getComputedStyle(body).getPropertyValue("--accent").trim() || "#4da3d4";
+    var cx = w / 2, cy = h / 2, radius = Math.min(w, h) / 2 - 26;
+    var count = Math.min(notes, 28);
+
+    ctx.globalAlpha = 0.22; ctx.strokeStyle = accent; ctx.lineWidth = 1;
+    for (var i = 0; i < count; i++) {
+      var a = (i / count) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.85; ctx.fillStyle = accent;
+    for (var j = 0; j < count; j++) {
+      var b = (j / count) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(b) * radius, cy + Math.sin(b) * radius, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.5; ctx.fillStyle = "#63707f";
+    ctx.font = "10px ui-sans-serif, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(notes + " not" + (notes > 28 ? " (28 gösteriliyor)" : ""), cx, h - 5);
+    ctx.globalAlpha = 1;
+  }
+
+  // ------------------------------------------------------------ connection
+  function setLink(status, text) {
+    var dot = $("t-dot");
+    dot.className = "dot " + status;
+    $("t-link").textContent = text;
+  }
+
+  function goOffline(reason) {
+    if (state.connected) state.connected = false;
+    body.classList.add("offline");
+    setLink("off", reason);
+    applyActivity("idle", "");
+    $("c-activity").textContent = "ZESTOLES OFFLINE";
+    $("c-detail").textContent = "arka uca bağlanılamıyor — gösterilen değerler canlı değil";
+  }
+
+  function connect() {
+    if (state.socket) { try { state.socket.close(); } catch (e) {} }
+    setLink("wait", state.attempt ? "yeniden bağlanıyor…" : "bağlanıyor…");
+
+    var socket;
+    try { socket = new WebSocket(WS_URL); }
+    catch (e) { goOffline("bağlanılamadı"); return schedule(); }
+    state.socket = socket;
+
+    socket.onopen = function () {
+      state.connected = true;
+      state.attempt = 0;
+      state.lastFrame = Date.now();
+      body.classList.remove("offline");
+      setLink("on", "bağlı");
+      // Ask for what was missed. The server replies with the gap, or with a
+      // fresh snapshot when the gap is wider than its history.
+      if (state.lastSeq > 0) send({ op: "replay", seq: state.lastSeq });
+    };
+
+    socket.onmessage = function (event) {
+      state.lastFrame = Date.now();
+      var envelope;
+      try { envelope = JSON.parse(event.data); }
+      catch (e) { return; }                     // malformed frame: ignore, stay up
+      if (!envelope || typeof envelope.seq !== "number") return;
+
+      if (envelope.seq > state.lastSeq + 1 && state.lastSeq > 0 &&
+          envelope.type !== "snapshot") {
+        state.gaps += 1;
+        send({ op: "resync" });
+      }
+      // A snapshot is authoritative about position, including downwards. The
+      // backend restarting resets its sequence to zero, and a client that only
+      // ever moves its counter forward would sit at the old number for hours —
+      // with gap detection silently disabled the whole time, because nothing
+      // would ever exceed it.
+      if (envelope.type === "snapshot" || envelope.seq > state.lastSeq) {
+        state.lastSeq = envelope.seq;
+      }
+      $("t-seq").textContent = state.lastSeq;
+
+      switch (envelope.type) {
+        case "snapshot":
+          applySnapshot(envelope.payload);
+          break;
+        case "heartbeat":
+          break;
+        case "dropped":
+          state.dropped += envelope.payload.count || 0;
+          pushRow(envelope);
+          send({ op: "resync" });
+          break;
+        case "system_state_changed":
+          if (envelope.payload.activity) {
+            applyActivity(envelope.payload.activity, envelope.payload.detail);
+          }
+          if (envelope.payload.resources) applyResources(envelope.payload.resources);
+          if (envelope.payload.uptime_s != null) {
+            $("t-uptime").textContent = duration(envelope.payload.uptime_s);
+          }
+          if (envelope.payload.telemetry) requestResync(15000);
+          pushRow(envelope);
+          break;
+        default:
+          if (envelope.type === "task_started" || envelope.type === "agent_started") {
+            setNow(envelope.payload.label || "");
+          }
+          if (envelope.type === "task_finished" || envelope.type === "agent_finished") {
+            setNow("");
+          }
+          if (String(envelope.type).indexOf("agent") === 0) {
+            $("r-agent-last").textContent = clock(envelope.ts);
+          }
+          pushRow(envelope);
+          requestResync(2000);
+      }
+    };
+
+    socket.onclose = function () { goOffline("bağlantı kesildi"); schedule(); };
+    socket.onerror = function () { /* onclose follows; nothing to add here */ };
+  }
+
+  function send(message) {
+    if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+      try { state.socket.send(JSON.stringify(message)); } catch (e) {}
+    }
+  }
+
+  function schedule() {
+    state.attempt += 1;
+    var wait = Math.min(BACKOFF_MIN * Math.pow(2, state.attempt - 1), BACKOFF_MAX);
+    setLink("off", "yeniden deneniyor (" + Math.round(wait / 1000) + "s)");
+    clearTimeout(state.timer);
+    state.timer = setTimeout(connect, wait);
+  }
+
+  // A socket can stay open while the far end has stopped saying anything. The
+  // heartbeat makes silence measurable, so silence can be treated as down.
+  setInterval(function () {
+    if (state.connected && Date.now() - state.lastFrame > OFFLINE_AFTER) {
+      goOffline("yanıt yok");
+      try { state.socket.close(); } catch (e) {}
+    }
+  }, 5000);
+
+  window.addEventListener("resize", function () {
+    var notes = parseInt($("r-notes").textContent, 10);
+    if (!isNaN(notes)) drawGraph({ notlar: notes });
+  });
+
+  goOffline("bağlanıyor…");
+  connect();
+})();
+</script>
+</body>
+</html>

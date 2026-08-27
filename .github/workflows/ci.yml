@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install core and audit tools
+        run: python -m pip install -r requirements-core.txt bandit pip-audit
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: High-severity static checks
+        run: bandit -r jarvis -lll
+      - name: Dependency audit
+        run: |
+          pip-audit -r requirements-core.txt
+          pip-audit -r requirements-voice.txt

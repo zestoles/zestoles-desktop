@@ -1,0 +1,1973 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZESTOLES · Live Intelligence</title>
+<style>
+/* ------------------------------------------------------------------ tokens */
+:root {
+  --bg:        #03040a;
+  --surface:   rgba(12, 15, 28, .78);
+  --surface-2: rgba(21, 23, 42, .84);
+  --line:      rgba(130, 153, 255, .18);
+  --line-soft: rgba(130, 153, 255, .10);
+  --text:      #f3f5ff;
+  --text-dim:  #a9b3cc;
+  --text-faint:#68738e;
+  --accent:    #39d8ff;
+  --accent-2:  #8b5cff;
+  --accent-gold:#ffc15a;
+  --accent-dim:#197a9b;
+  --good:      #46d39a;
+  --warn:      #f0b64d;
+  --bad:       #ff6b72;
+  --radius:    14px;
+  --radius-sm: 10px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI",
+          system-ui, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(900px 620px at 50% -14%, rgba(57,216,255,.13), transparent 64%),
+    radial-gradient(760px 580px at 88% 18%, rgba(139,92,255,.10), transparent 70%),
+    radial-gradient(680px 520px at 5% 80%, rgba(255,193,90,.055), transparent 70%),
+    linear-gradient(145deg, #03040a 0%, #070817 52%, #03040a 100%);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .22;
+  background-image: linear-gradient(rgba(255,255,255,.016) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,.016) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 78%);
+}
+
+/* ------------------------------------------------------------------ header */
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--line-soft);
+  flex: none; position: relative; z-index: 3;
+  background: rgba(3,4,10,.55); backdrop-filter: blur(24px) saturate(140%);
+}
+.brand-mark { width: 28px; height: 28px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(57,216,255,.32)); }
+.wordmark {
+  font-size: 12px; font-weight: 650; letter-spacing: .42em;
+  color: var(--text); text-transform: uppercase; user-select: none;
+  text-shadow: 0 0 18px rgba(57,216,255,.22);
+}
+.edition { margin-left: 2px; font-size: 9px; letter-spacing: .18em; color: var(--accent-gold); text-transform: uppercase; }
+.spacer { flex: 1; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px; color: var(--text-dim); white-space: nowrap;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); transition: background .25s ease; }
+.pill[data-state="hazir"] .dot     { background: var(--good); }
+.pill[data-state="dinliyor"] .dot  { background: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
+.pill[data-state="anliyor"] .dot,
+.pill[data-state="dusunuyor"] .dot,
+.pill[data-state="calisiyor"] .dot { background: var(--accent); animation: breathe 1.5s ease-in-out infinite; }
+.pill[data-state="konusuyor"] .dot { background: var(--accent); animation: breathe 1s ease-in-out infinite; }
+.pill[data-state="onay"] .dot      { background: var(--warn); animation: breathe 1.2s ease-in-out infinite; }
+.pill[data-state="hata"] .dot      { background: var(--bad); }
+.pill[data-state="cevrimdisi"] .dot,
+.pill[data-state="kapandi"] .dot   { background: var(--text-faint); }
+@keyframes breathe { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+
+.ghost {
+  appearance: none; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text-dim); border-radius: var(--radius-sm);
+  padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+.ghost:hover  { border-color: #2b3546; color: var(--text); }
+.ghost:active { background: var(--surface-2); }
+.ghost:focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 2px; }
+.ghost[disabled] { opacity: .4; cursor: default; }
+.ghost[aria-pressed="true"] { border-color: var(--accent-dim); color: var(--accent); }
+.ghost.quit:hover { border-color: #5a2b2f; color: #ffa5a9; }
+a.ghost { text-decoration: none; line-height: 1.2; }
+
+/* -------------------------------------------------------------------- core */
+main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+#stage {
+  flex: none; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 26px 20px 18px;
+  transition: padding .45s cubic-bezier(.22,1,.36,1);
+}
+#stage:not(.compact) { flex: 1; padding: 20px; }
+#stage:not(.compact) ~ #thread { flex: none; }
+#stage.compact { padding: 14px 20px 8px; gap: 10px; }
+
+.core {
+  position: relative; width: 176px; height: 176px; flex: none; cursor: pointer;
+  transition: width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1);
+  isolation: isolate;
+}
+#stage.compact .core { width: 72px; height: 72px; }
+
+/* Rings and glow move with transform and opacity only, so the compositor owns
+   them and the CPU stays out of it. The only animation frame loop on this page
+   runs while the microphone is open or JARVIS is speaking -- see startWave. */
+.core i {
+  position: absolute; inset: 0; border-radius: 50%; display: block;
+  border: 1px solid rgba(77,184,255,.22);
+  transform: scale(1); opacity: .8;
+}
+.core i:nth-child(1) { animation: ring 4.2s ease-in-out infinite; }
+.core i:nth-child(2) { animation: ring 4.2s ease-in-out infinite .9s; }
+.core i:nth-child(3) { animation: ring 4.2s ease-in-out infinite 1.8s; }
+@keyframes ring {
+  0%   { transform: scale(.72); opacity: 0 }
+  35%  { opacity: .5 }
+  100% { transform: scale(1.2); opacity: 0 }
+}
+.core b {
+  position: absolute; inset: 20%; border-radius: 50%; display: block; z-index: -1;
+  background: radial-gradient(circle at 35% 28%, #bdf5ff 0%, #39d8ff 20%, #704cff 54%, #091126 100%);
+  box-shadow: 0 0 58px rgba(57,216,255,.36), 0 0 92px rgba(139,92,255,.18), inset 0 0 18px rgba(255,255,255,.22);
+  animation: float 5.5s ease-in-out infinite;
+  transition: box-shadow .3s ease;
+}
+.core img {
+  position: absolute; inset: 4%; width: 92%; height: 92%; object-fit: contain;
+  filter: drop-shadow(0 0 14px rgba(57,216,255,.35)) drop-shadow(0 0 30px rgba(139,92,255,.20));
+  animation: levitate 5.5s ease-in-out infinite; transform-origin: 50% 54%;
+  transition: filter .3s ease, opacity .3s ease;
+}
+@keyframes levitate { 0%,100% { transform: translateY(0) scale(1) } 50% { transform: translateY(-3px) scale(1.018) } }
+@keyframes float { 0%,100% { transform: scale(1) } 50% { transform: scale(1.05) } }
+
+body[data-mode="dinliyor"] .core b {
+  background: radial-gradient(circle at 34% 30%, #d6f0ff 0%, #63c6ff 34%, #1f7fb8 68%, #0d3550 100%);
+  animation: none;
+}
+body[data-mode="dinliyor"] .core img,
+body[data-mode="konusuyor"] .core img { filter: drop-shadow(0 0 20px rgba(57,216,255,.62)) drop-shadow(0 0 42px rgba(139,92,255,.34)); }
+body[data-mode="dinliyor"] .core i { animation-duration: 2.2s; border-color: rgba(77,184,255,.4); }
+body[data-mode="dusunuyor"] .core b,
+body[data-mode="anliyor"] .core b,
+body[data-mode="calisiyor"] .core b { animation: float 1.5s ease-in-out infinite; }
+body[data-mode="dusunuyor"] .core i,
+body[data-mode="anliyor"] .core i,
+body[data-mode="calisiyor"] .core i { animation-duration: 1.9s; }
+body[data-mode="konusuyor"] .core b { animation: float 2.2s ease-in-out infinite; }
+body[data-mode="konusuyor"] .core i { animation-duration: 2.6s; }
+body[data-mode="onay"] .core b {
+  background: radial-gradient(circle at 34% 30%, #ffe2b0 0%, #f0b64d 36%, #8a6117 100%);
+  box-shadow: 0 0 34px rgba(240,182,77,.42), inset 0 0 18px rgba(255,255,255,.2);
+}
+body[data-mode="hata"] .core b {
+  background: radial-gradient(circle at 34% 30%, #ffc9cc 0%, #ff6b72 36%, #7d2a2e 100%);
+  box-shadow: 0 0 34px rgba(255,107,114,.4), inset 0 0 18px rgba(255,255,255,.2);
+  animation: none;
+}
+body[data-mode="cevrimdisi"] .core b,
+body[data-mode="kapandi"] .core b {
+  background: radial-gradient(circle at 34% 30%, #6f7787 0%, #3d434f 40%, #20242c 100%);
+  box-shadow: none; animation: none;
+}
+body[data-mode="cevrimdisi"] .core i,
+body[data-mode="kapandi"] .core i { animation: none; opacity: .1; }
+body[data-mode="cevrimdisi"] .core img,
+body[data-mode="kapandi"] .core img { filter: grayscale(1) brightness(.48); opacity: .52; animation: none; }
+
+#greeting { font-size: 16px; color: var(--text-dim); text-align: center; min-height: 24px; }
+#stage.compact #greeting { display: none; }
+
+/* ---------------------------------------------------------------- waveform */
+#wave {
+  width: 260px; height: 34px; display: block; opacity: 0;
+  transition: opacity .3s ease;
+}
+body[data-mode="dinliyor"] #wave,
+body[data-mode="konusuyor"] #wave { opacity: 1; }
+#stage.compact #wave { width: 180px; height: 24px; }
+
+/* ------------------------------------------------------------ conversation */
+#thread {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 6px 0 18px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin; scrollbar-color: #202736 transparent;
+}
+#thread::-webkit-scrollbar { width: 10px; }
+#thread::-webkit-scrollbar-thumb {
+  background: #1b2230; border-radius: 8px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+.msg { margin: 16px 0; animation: rise .3s cubic-bezier(.22,1,.36,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(7px) } to { opacity: 1; transform: none } }
+.who {
+  font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text-faint); margin-bottom: 5px; font-weight: 600;
+}
+.msg.user .who { color: var(--accent-dim); }
+.body { overflow-wrap: anywhere; }
+.body .prose-line { min-height: .55em; white-space: pre-wrap; }
+.body .prose-line + .prose-line { margin-top: 3px; }
+.body .heading { margin: 14px 0 5px; color: #fff; font-weight: 650; letter-spacing: -.01em; }
+.body .heading:first-child { margin-top: 0; }
+.body .bullet { position: relative; padding-left: 17px; margin: 4px 0; }
+.body .bullet::before { content: ""; position: absolute; left: 2px; top: .72em;
+  width: 5px; height: 5px; border-radius: 50%; background: linear-gradient(135deg,var(--accent),var(--accent-2));
+  box-shadow: 0 0 8px rgba(57,216,255,.35); }
+.body a { color: #7de7ff; text-decoration: none; border-bottom: 1px solid rgba(125,231,255,.24); }
+.body a:hover { color: #c6f7ff; border-bottom-color: currentColor; }
+.body strong { color: #fff; font-weight: 650; }
+.body code { font-family: var(--mono); font-size: .9em; color: #d5dcff;
+  background: rgba(139,92,255,.11); border: 1px solid rgba(139,92,255,.16);
+  border-radius: 5px; padding: 1px 5px; }
+.body pre { position: relative; overflow-x: auto; margin: 10px 0; padding: 13px 15px;
+  white-space: pre; font: 12.5px/1.6 var(--mono); color: #dce5ff;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: linear-gradient(145deg,rgba(8,11,21,.94),rgba(18,15,34,.82));
+  box-shadow: inset 0 1px rgba(255,255,255,.025); }
+.msg.user .body {
+  background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); padding: 10px 14px;
+}
+.who .sesli { font-size: 10px; color: var(--text-faint); margin-left: 6px; letter-spacing: 0; }
+
+/* ------------------------------------------------------------------- tools */
+.tool {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line-soft); border-left: 2px solid var(--line);
+  background: linear-gradient(90deg, rgba(21,26,36,.7), rgba(15,19,27,.35));
+  border-radius: var(--radius-sm); padding: 8px 13px; margin: 6px 0;
+  font-size: 13px; animation: rise .25s ease both;
+}
+.tool .mark { flex: none; width: 14px; text-align: center; font-size: 11px; color: var(--text-faint); }
+.tool .what { flex: 1; min-width: 0; }
+.tool .name { color: var(--text-dim); }
+.tool .detail { color: var(--text-faint); font-size: 12px; overflow-wrap: anywhere; }
+.tool.run { border-left-color: var(--accent); }
+.tool.run .mark { color: var(--accent); animation: breathe 1.1s ease-in-out infinite; }
+.tool.ok { border-left-color: var(--good); }
+.tool.ok .mark { color: var(--good); }
+.tool.bad { border-left-color: var(--bad); }
+.tool.bad .mark { color: var(--bad); }
+.tool.bad .detail { color: #ffa5a9; }
+
+.ask {
+  border: 1px solid #3a3016; border-left: 2px solid var(--warn);
+  background: linear-gradient(90deg, rgba(46,37,16,.5), rgba(15,19,27,.3));
+  border-radius: var(--radius-sm); padding: 13px 15px; margin: 11px 0;
+  animation: rise .25s ease both;
+}
+.ask h4 { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--warn); }
+.ask .args {
+  font-family: var(--mono); font-size: 12.5px; color: var(--text-dim);
+  margin: 8px 0 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.ask .row { display: flex; gap: 9px; }
+.ask button.yes { border-color: #4a3a12; color: #ffd591; }
+.ask button.yes:hover { border-color: var(--warn); color: #fff; }
+
+.note { color: var(--text-faint); font-size: 12.5px; margin: 7px 0; }
+.note.bad { color: #ffa5a9; }
+
+/* ------------------------------------------------------------------ panels */
+#task-panel, #ayarlar {
+  flex: none; border-bottom: 1px solid var(--line-soft);
+  background: var(--surface); padding: 14px 0 16px;
+  max-height: 60vh; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: #202736 transparent;
+}
+#task-panel .wrap { display: flex; flex-direction: column; gap: 6px; }
+.task {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 7px 10px; font-size: 12.5px;
+}
+.task .title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.task .state { flex: none; font-size: 11.5px; color: var(--text-faint); }
+.task[data-state="running"] .state { color: var(--accent); }
+.task[data-state="done"] .state { color: var(--good); }
+.task[data-state="failed"] .state,
+.task[data-state="quarantined"] .state { color: var(--bad); }
+.task .detail { flex-basis: 100%; color: var(--text-faint); font-size: 12px; overflow-wrap: anywhere; }
+.task .ghost { padding: 2px 8px; font-size: 11.5px; }
+#task-panel .empty, #ayarlar .empty { color: var(--text-faint); font-size: 12.5px; }
+
+#ayarlar h3 {
+  margin: 0 0 10px; font-size: 10.5px; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--text-faint);
+}
+#ayarlar h3:not(:first-child) { margin-top: 20px; }
+.satir {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 9px 0; border-top: 1px solid var(--line-soft);
+}
+.satir:first-of-type { border-top: 0; }
+.satir .ad { flex: 1; min-width: 180px; font-size: 13.5px; }
+.satir .not { flex-basis: 100%; color: var(--text-faint); font-size: 12px; margin-top: 2px; }
+.satir input[type="number"] {
+  width: 110px; flex: none; text-align: right;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  border-radius: var(--radius-sm); padding: 6px 9px; font: inherit; font-size: 13px;
+  outline: none;
+}
+.satir input:focus { border-color: #2c4055; box-shadow: 0 0 0 3px rgba(77,184,255,.09); }
+.satir .deger { color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+.satir .sonuc { flex-basis: 100%; font-size: 12px; margin-top: 4px; }
+.satir .sonuc.ok  { color: var(--good); }
+.satir .sonuc.bad { color: #ffa5a9; }
+#ayarlar .aksiyon { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
+#ayarlar .gizlilik {
+  margin-top: 16px; padding: 11px 13px; font-size: 12.5px; color: var(--text-faint);
+  border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* ------------------------------------------------------------------- input */
+footer {
+  flex: none; border-top: 1px solid var(--line-soft);
+  background: linear-gradient(0deg, rgba(3,4,10,.98), rgba(3,4,10,.72));
+  padding: 12px 0 16px;
+}
+.composer {
+  display: flex; align-items: flex-end; gap: 9px;
+  border: 1px solid var(--line); background: var(--surface);
+  border-radius: var(--radius); padding: 8px 9px 8px 14px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.composer:focus-within { border-color: #2c4055; box-shadow: 0 0 0 3px rgba(77,184,255,.09); }
+#input {
+  flex: 1; border: 0; background: transparent; color: var(--text);
+  font: inherit; resize: none; outline: none; max-height: 160px; padding: 4px 0;
+}
+#input::placeholder { color: var(--text-faint); }
+
+.round {
+  flex: none; appearance: none; border: 0; cursor: pointer;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  transition: opacity .18s ease, transform .12s ease, background .2s ease;
+}
+.round svg { width: 17px; height: 17px; }
+.round:active { transform: scale(.93); }
+#mic { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--line); }
+#mic:hover { color: var(--text); border-color: #2b3546; }
+#mic[aria-pressed="true"] {
+  background: var(--accent); color: #04121c; border-color: transparent;
+  box-shadow: 0 0 0 4px rgba(77,184,255,.16);
+}
+#mic[disabled] { opacity: .35; cursor: default; }
+#send { background: var(--accent); color: #04121c; }
+#send:hover { opacity: .88; }
+#send[disabled] { background: #1e2532; color: var(--text-faint); cursor: default; }
+
+.hint {
+  display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 11.5px; color: var(--text-faint);
+}
+kbd {
+  font: inherit; font-size: 10.5px; font-family: var(--mono);
+  border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 5px; padding: 1px 5px; color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------- shutdown */
+#kapanis {
+  position: fixed; inset: 0; z-index: 20;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 13px; background: rgba(6,8,12,.94); backdrop-filter: blur(3px);
+  animation: rise .3s ease both;
+}
+body[data-mode="kapandi"] #kapanis { display: flex; }
+#kapanis .baslik { font-size: 17px; color: var(--text-dim); letter-spacing: .04em; }
+#kapanis .alt { font-size: 12.5px; color: var(--text-faint); }
+
+/* ========================================================== NEXUS COMMAND */
+body { display: grid; grid-template-rows: 58px minmax(0,1fr); }
+body::after {
+  content: ""; position: fixed; inset: 58px 0 0; pointer-events: none; z-index: 9;
+  background: repeating-linear-gradient(0deg, rgba(90,220,255,.015) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen; opacity: .35;
+}
+header { min-width: 0; padding: 9px 15px; }
+.header-stat { display:flex; flex-direction:column; line-height:1.15; padding:0 12px;
+  border-left:1px solid var(--line-soft); }
+.header-stat small { font: 8px/1 var(--mono); letter-spacing:.18em; color:var(--text-faint); }
+.header-stat strong { margin-top:4px; font: 11px/1 var(--mono); color:var(--text-dim); font-weight:500; }
+#clock { color:var(--accent); }
+
+.app-shell { min-height:0; display:grid; grid-template-columns:82px minmax(520px,1fr) 310px; }
+.nav-rail { min-height:0; padding:14px 9px; border-right:1px solid var(--line-soft);
+  background:linear-gradient(180deg,rgba(4,7,16,.92),rgba(5,5,13,.72));
+  display:flex; flex-direction:column; gap:7px; z-index:4; }
+.nav-item { appearance:none; border:1px solid transparent; border-radius:12px; min-height:58px;
+  color:var(--text-faint); background:transparent; cursor:pointer; font:9px/1.2 var(--mono);
+  letter-spacing:.08em; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:7px; transition:.2s ease; }
+.nav-item .ico { font:18px/1 var(--font); color:var(--text-dim); }
+.nav-item:hover { color:var(--text); background:rgba(57,216,255,.055); border-color:var(--line-soft); }
+.nav-item.active { color:var(--accent); border-color:rgba(57,216,255,.24);
+  background:linear-gradient(135deg,rgba(57,216,255,.12),rgba(139,92,255,.08));
+  box-shadow:inset 2px 0 var(--accent), 0 0 22px rgba(57,216,255,.07); }
+.nav-item.active .ico { color:#d8fbff; filter:drop-shadow(0 0 7px var(--accent)); }
+.nav-spacer { flex:1; }
+
+.center-stack { min-width:0; min-height:0; display:flex; flex-direction:column; }
+main { position:relative; min-height:0; overflow:hidden; }
+.view { display:none; height:100%; min-height:0; overflow:auto; scrollbar-width:thin;
+  scrollbar-color:#202736 transparent; }
+.view.active { display:flex; flex-direction:column; }
+#live-view { overflow:hidden; }
+
+#stage { position:relative; min-height:215px; flex:none; padding:18px 20px 8px; overflow:hidden; }
+#stage::before { content:""; position:absolute; width:440px; height:440px; border-radius:50%;
+  border:1px solid rgba(57,216,255,.075); background:
+  repeating-radial-gradient(circle,transparent 0 46px,rgba(57,216,255,.035) 47px 48px),
+  conic-gradient(from 20deg,transparent 0 11%,rgba(57,216,255,.05) 11.2% 11.5%,transparent 12% 37%,rgba(139,92,255,.06) 37.2% 38%,transparent 38.5%);
+  animation:hudspin 36s linear infinite; }
+#stage:not(.compact) { flex:0 0 48%; min-height:315px; }
+#stage.compact { min-height:108px; }
+@keyframes hudspin { to { transform:rotate(360deg); } }
+.core { width:210px; height:210px; }
+#stage.compact .core { width:84px; height:84px; }
+.core::before,.core::after { content:""; position:absolute; inset:-22%; border-radius:50%;
+  border:1px dashed rgba(57,216,255,.24); animation:hudspin 18s linear infinite; }
+.core::after { inset:-38%; border-style:solid; border-color:rgba(139,92,255,.12);
+  clip-path:polygon(0 0,46% 0,46% 3%,54% 3%,54% 0,100% 0,100% 46%,97% 46%,97% 54%,100% 54%,100% 100%,54% 100%,54% 97%,46% 97%,46% 100%,0 100%,0 54%,3% 54%,3% 46%,0 46%);
+  animation-direction:reverse; animation-duration:26s; }
+.orb-caption { position:absolute; z-index:2; bottom:18px; display:flex; gap:26px;
+  font:9px/1 var(--mono); letter-spacing:.18em; color:var(--text-faint); text-transform:uppercase; }
+.orb-caption span::before { content:""; display:inline-block; width:4px; height:4px; border-radius:50%;
+  background:var(--accent); margin-right:7px; box-shadow:0 0 7px var(--accent); }
+#stage.compact .orb-caption { display:none; }
+#greeting { position:relative; z-index:2; font-size:13px; letter-spacing:.04em; }
+#wave { position:relative; z-index:2; }
+
+.mission-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px;
+  padding:0 16px 10px; flex:none; }
+.mission-card { min-width:0; border:1px solid var(--line-soft); border-radius:10px;
+  padding:8px 10px; background:linear-gradient(145deg,rgba(10,15,29,.82),rgba(13,12,27,.62)); }
+.mission-card small { display:block; font:8px/1 var(--mono); letter-spacing:.16em; color:var(--text-faint); }
+.mission-card strong { display:block; margin-top:6px; font:11px/1.2 var(--mono); font-weight:500;
+  color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+#thread { background:linear-gradient(180deg,rgba(5,7,15,.15),rgba(5,7,15,.55)); }
+.wrap { max-width:850px; }
+footer { padding:10px 0 12px; }
+.composer { backdrop-filter:blur(18px); box-shadow:0 -12px 40px rgba(3,4,10,.45); }
+
+.telemetry { min-width:0; min-height:0; overflow:auto; border-left:1px solid var(--line-soft);
+  background:linear-gradient(180deg,rgba(6,8,18,.91),rgba(5,5,13,.78));
+  padding:13px; scrollbar-width:thin; scrollbar-color:#202736 transparent; z-index:4; }
+.rail-title { display:flex; align-items:center; justify-content:space-between; margin:2px 2px 11px;
+  font:9px/1 var(--mono); letter-spacing:.18em; color:var(--text-faint); }
+.rail-title b { color:var(--good); font-weight:500; }
+.tele-card { border:1px solid var(--line-soft); border-radius:12px; padding:12px; margin-bottom:10px;
+  background:linear-gradient(145deg,rgba(13,17,32,.82),rgba(10,9,22,.68));
+  box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.tele-card h3,.dash-card h3 { margin:0 0 11px; font:9px/1 var(--mono); font-weight:500;
+  letter-spacing:.17em; color:var(--text-faint); text-transform:uppercase; }
+.meter { display:grid; grid-template-columns:38px 1fr 38px; align-items:center; gap:8px; margin:9px 0; }
+.meter label,.meter output { font:9px/1 var(--mono); color:var(--text-faint); }
+.meter output { text-align:right; color:var(--text-dim); }
+.meter-track { height:4px; border-radius:3px; background:rgba(255,255,255,.055); overflow:hidden; }
+.meter-fill { width:calc(var(--load, 0) * 1%); height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent-dim),var(--accent));
+  box-shadow:0 0 10px rgba(57,216,255,.38); transition:width .55s ease; }
+.kv { display:flex; justify-content:space-between; gap:12px; padding:6px 0;
+  border-top:1px solid rgba(130,153,255,.07); font-size:11px; }
+.kv:first-of-type { border-top:0; }
+.kv span { color:var(--text-faint); }
+.kv b { color:var(--text-dim); font-weight:500; text-align:right; overflow-wrap:anywhere; }
+#event-feed { max-height:230px; overflow:hidden; }
+.event-line { position:relative; padding:0 0 10px 14px; font-size:10.5px; color:var(--text-dim); }
+.event-line::before { content:""; position:absolute; left:0; top:.45em; width:5px; height:5px;
+  border-radius:50%; background:var(--accent-dim); box-shadow:0 0 6px var(--accent-dim); }
+.event-line small { display:block; margin-top:2px; font:8px/1 var(--mono); color:var(--text-faint); }
+
+.dashboard-head { flex:none; display:flex; align-items:flex-end; justify-content:space-between; gap:20px;
+  padding:24px 26px 17px; border-bottom:1px solid var(--line-soft); }
+.dashboard-head .eyebrow { font:9px/1 var(--mono); letter-spacing:.22em; color:var(--accent); }
+.dashboard-head h1 { margin:7px 0 0; font-size:25px; letter-spacing:-.03em; font-weight:600; }
+.dashboard-head p { margin:0; max-width:480px; color:var(--text-faint); font-size:12px; text-align:right; }
+.dashboard-grid { padding:18px 22px 30px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.dash-card { min-height:150px; border:1px solid var(--line-soft); border-radius:14px; padding:15px;
+  background:linear-gradient(145deg,rgba(13,17,32,.86),rgba(9,8,21,.72)); }
+.dash-card.wide { grid-column:1/-1; }
+.dash-card .big { font:26px/1 var(--mono); color:#e8fbff; text-shadow:0 0 20px rgba(57,216,255,.22); }
+.dash-list { display:grid; gap:6px; }
+.empty-state { color:var(--text-faint); font-size:12px; padding:14px 0; }
+.security-callout { border:1px solid rgba(240,182,77,.25); border-left:2px solid var(--warn);
+  background:rgba(240,182,77,.05); border-radius:10px; padding:11px 12px; color:#d9c49c; font-size:11.5px; }
+.secret-row { display:flex; gap:8px; margin:12px 0; }
+.secret-row input { flex:1; min-width:0; border:1px solid var(--line); background:rgba(3,5,12,.7);
+  color:var(--text); border-radius:9px; padding:9px 10px; outline:none; font:12px var(--mono); }
+.secret-row input:focus { border-color:var(--accent-dim); }
+.button-row { display:flex; gap:8px; flex-wrap:wrap; }
+.pair-code { display:inline-block; margin:12px 0 4px; padding:10px 14px; border:1px solid rgba(57,216,255,.25);
+  background:rgba(57,216,255,.07); border-radius:10px; font:20px/1 var(--mono); letter-spacing:.18em; color:var(--accent); }
+#telegram-log { max-height:320px; overflow:auto; }
+.telegram-msg { padding:9px 10px; margin:6px 0; border-radius:9px; background:rgba(255,255,255,.025);
+  border-left:2px solid var(--line); font-size:11.5px; overflow-wrap:anywhere; }
+.telegram-msg[data-dir="in"] { border-left-color:var(--accent); }
+.telegram-msg[data-dir="out"] { border-left-color:var(--good); }
+.telegram-msg[data-dir="system"] { border-left-color:var(--warn); color:var(--text-faint); }
+.reminder-row { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; padding:11px 0;
+  border-top:1px solid var(--line-soft); }
+.reminder-row:first-child { border-top:0; }
+.reminder-row time { grid-row:1/3; font:10px/1.4 var(--mono); color:var(--accent); }
+.reminder-row strong { font-size:12px; font-weight:500; }
+.reminder-row small { color:var(--text-faint); }
+
+@media (max-width: 1180px) {
+  .app-shell { grid-template-columns:72px minmax(480px,1fr) 255px; }
+  .telemetry { padding:10px; }
+  .header-stat:nth-of-type(2) { display:none; }
+}
+@media (max-width: 900px) {
+  body { grid-template-rows:54px minmax(0,1fr) 64px; }
+  header .header-stat,.edition,#tasks,#ayar { display:none; }
+  .app-shell { grid-template-columns:1fr; }
+  .nav-rail { position:fixed; z-index:15; inset:auto 0 0; height:64px; padding:6px 8px;
+    border:0; border-top:1px solid var(--line); flex-direction:row; justify-content:space-around; }
+  .nav-item { min-height:50px; flex:1; }
+  .nav-spacer { display:none; }
+  .telemetry { display:none; }
+  .dashboard-grid { grid-template-columns:1fr; padding:14px; }
+  .dash-card.wide { grid-column:auto; }
+  .mission-strip { grid-template-columns:repeat(2,1fr); }
+  .dashboard-head { align-items:flex-start; padding:18px; }
+  .dashboard-head p { display:none; }
+}
+@media (max-width: 560px) {
+  header { padding:8px 10px; }
+  .wordmark { letter-spacing:.24em; }
+  header .ghost { padding:6px 8px; font-size:11px; }
+  .nav-item { font-size:7.5px; }
+  .nav-item .ico { font-size:16px; }
+  .mission-strip { display:none; }
+  #stage:not(.compact) { flex:0 0 48%; min-height:270px; }
+  .core { width:175px; height:175px; }
+  .wrap { padding:0 14px; }
+  .dashboard-head h1 { font-size:20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after { animation-duration:.001ms !important; animation-iteration-count:1 !important;
+    scroll-behavior:auto !important; transition-duration:.001ms !important; }
+}
+
+/* ======================================================= ZESTOLES IMMERSIVE */
+/* LIVE is intentionally two different rooms. Voice focus is a quiet, cinematic
+   presence; text focus is a workspace. Keeping both visible at once made the
+   microphone feel like one more dashboard control instead of the assistant. */
+body { --entity-rgb:57,216,255; --entity-rgb-2:139,92,255; }
+body[data-mode="dinliyor"] { --entity-rgb:69,199,255; --entity-rgb-2:32,126,255; }
+body[data-mode="anliyor"],body[data-mode="dusunuyor"],body[data-mode="calisiyor"] {
+  --entity-rgb:167,104,255; --entity-rgb-2:55,224,255; }
+body[data-mode="konusuyor"] { --entity-rgb:55,239,205; --entity-rgb-2:64,157,255; }
+body[data-mode="onay"] { --entity-rgb:255,193,90; --entity-rgb-2:255,119,74; }
+body[data-mode="hata"] { --entity-rgb:255,87,111; --entity-rgb-2:255,151,70; }
+body[data-mode="cevrimdisi"],body[data-mode="kapandi"] {
+  --entity-rgb:100,111,135; --entity-rgb-2:57,63,78; }
+
+.entity-reactor { position:absolute; inset:0; transform:scale(1); transform-origin:50% 52%;
+  will-change:transform; transition:transform .12s linear; }
+.entity-reactor::before { content:""; position:absolute; inset:-22%; border-radius:50%; z-index:-3;
+  background:radial-gradient(circle,rgba(var(--entity-rgb),.24),rgba(var(--entity-rgb-2),.09) 42%,transparent 69%);
+  filter:blur(10px); animation:entityAura 4.8s ease-in-out infinite; }
+.core .arc { position:absolute; display:block; border-radius:50%; pointer-events:none; z-index:-1;
+  border:1px solid rgba(var(--entity-rgb),.3); opacity:.75; }
+.core .arc-a { inset:-13%; border-left-color:transparent; border-bottom-color:rgba(var(--entity-rgb-2),.62);
+  animation:hudspin 11s linear infinite; }
+.core .arc-b { inset:-28%; border-width:1px; border-style:dashed; border-right-color:transparent;
+  animation:hudspin 17s linear infinite reverse; }
+.core .arc-c { inset:-43%; border-color:rgba(var(--entity-rgb),.12); clip-path:polygon(0 0,42% 0,42% 2%,58% 2%,58% 0,100% 0,100% 42%,98% 42%,98% 58%,100% 58%,100% 100%,58% 100%,58% 98%,42% 98%,42% 100%,0 100%,0 58%,2% 58%,2% 42%,0 42%);
+  animation:hudspin 30s linear infinite; }
+.core .spark { position:absolute; width:6px; height:6px; border-radius:50%; z-index:4;
+  background:rgb(var(--entity-rgb)); box-shadow:0 0 12px rgb(var(--entity-rgb)); }
+.core .spark-a { left:-16%; top:47%; animation:sparkDrift 3.7s ease-in-out infinite; }
+.core .spark-b { right:-25%; top:25%; animation:sparkDrift 4.6s ease-in-out infinite reverse; }
+.core .spark-c { right:7%; bottom:-30%; animation:sparkDrift 5.2s ease-in-out infinite; }
+.entity-label { position:absolute; left:50%; top:calc(100% + 55px); transform:translateX(-50%);
+  white-space:nowrap; text-align:center; font:600 10px/1 var(--mono); letter-spacing:.42em;
+  color:rgba(var(--entity-rgb),.9); text-shadow:0 0 16px rgba(var(--entity-rgb),.7); }
+.entity-label small { display:block; margin-top:9px; font:8px/1.2 var(--mono); letter-spacing:.18em;
+  color:var(--text-faint); text-shadow:none; }
+@keyframes entityAura { 0%,100% { transform:scale(.92); opacity:.45 } 50% { transform:scale(1.08); opacity:.92 } }
+@keyframes sparkDrift { 0%,100% { transform:translate3d(0,-7px,0) scale(.7); opacity:.28 } 50% { transform:translate3d(6px,8px,0) scale(1.25); opacity:1 } }
+
+body[data-mode="konusuyor"] .entity-reactor::before { animation-duration:1.2s; }
+body[data-mode="konusuyor"] .core .arc-a { animation-duration:4.4s; }
+body[data-mode="konusuyor"] .core .arc-b { animation-duration:6.2s; }
+body[data-mode="dusunuyor"] .core .arc-a,body[data-mode="anliyor"] .core .arc-a,
+body[data-mode="calisiyor"] .core .arc-a { animation-duration:2.8s; }
+body[data-mode="hata"] .entity-reactor { animation:entityFault .38s ease-in-out 2; }
+@keyframes entityFault { 0%,100% { transform:translateX(0) } 35% { transform:translateX(-5px) } 70% { transform:translateX(5px) } }
+
+/* The composer is a deliberate mode, not permanent furniture. */
+footer { border-top:0; background:transparent; pointer-events:none; padding:0 0 18px; }
+footer .wrap { max-width:920px; }
+.interaction-dock { min-height:58px; display:flex; align-items:center; justify-content:center; gap:10px;
+  pointer-events:auto; }
+.mode-button { appearance:none; height:48px; min-width:48px; padding:0 16px; border-radius:24px;
+  border:1px solid rgba(var(--entity-rgb),.24); background:rgba(7,10,21,.76); color:var(--text-dim);
+  backdrop-filter:blur(22px) saturate(145%); cursor:pointer; font:10px/1 var(--mono); letter-spacing:.12em;
+  display:flex; align-items:center; justify-content:center; gap:8px; transition:color .2s ease,border-color .2s ease,background .2s ease,transform .2s ease; }
+.mode-button svg { width:18px; height:18px; }
+.mode-button:hover,.mode-button[aria-pressed="true"] { color:rgb(var(--entity-rgb));
+  border-color:rgba(var(--entity-rgb),.62); background:rgba(var(--entity-rgb),.09); }
+#mic { width:58px; height:58px; border-radius:50%; padding:0; color:rgb(var(--entity-rgb));
+  box-shadow:0 0 34px rgba(var(--entity-rgb),.13); }
+#mic[aria-pressed="true"] { color:#021317; background:rgb(var(--entity-rgb));
+  box-shadow:0 0 0 5px rgba(var(--entity-rgb),.1),0 0 38px rgba(var(--entity-rgb),.42); }
+.composer { width:0; max-width:0; padding:8px 0; border-color:transparent; opacity:0; overflow:hidden;
+  pointer-events:none; transform:translateY(8px) scale(.98); transition:max-width .38s cubic-bezier(.22,1,.36,1),width .38s cubic-bezier(.22,1,.36,1),opacity .2s ease,transform .38s cubic-bezier(.22,1,.36,1),padding .38s ease,border-color .2s ease; }
+body.text-session .composer { width:min(700px,calc(100vw - 190px)); max-width:700px; padding:8px 9px 8px 14px;
+  border-color:var(--line); opacity:1; pointer-events:auto; transform:none; }
+body.text-session #writeMode { color:#06101a; background:var(--accent); border-color:transparent; }
+body.text-session #mic { width:48px; height:48px; box-shadow:none; }
+.hint { justify-content:center; opacity:0; pointer-events:none; min-height:18px; margin-top:3px;
+  transition:opacity .2s ease; }
+body.text-session .hint { opacity:1; }
+
+/* Voice focus removes dashboard noise and gives the entity the whole room. */
+body.voice-session .nav-rail,body.voice-session .telemetry,body.voice-session .mission-strip,
+body.voice-session #thread { display:none; }
+body.voice-session .app-shell { grid-template-columns:minmax(0,1fr); }
+body.voice-session #live-view { background:radial-gradient(circle at 50% 46%,rgba(var(--entity-rgb),.1),transparent 42%); }
+body.voice-session #stage,body.voice-session #stage.compact,body.voice-session #stage:not(.compact) {
+  flex:1; min-height:0; padding:30px 20px 100px; gap:28px; }
+body.voice-session #stage::before { width:min(68vw,760px); height:min(68vw,760px); opacity:.7; }
+body.voice-session .core,body.voice-session #stage.compact .core {
+  width:clamp(300px,37vw,510px); height:clamp(300px,37vw,510px); }
+body.voice-session .core img { filter:drop-shadow(0 0 28px rgba(var(--entity-rgb),.55)) drop-shadow(0 0 70px rgba(var(--entity-rgb-2),.3)); }
+body.voice-session #greeting { font-size:15px; letter-spacing:.13em; text-transform:uppercase; color:rgba(var(--entity-rgb),.85); }
+body.voice-session #wave { width:min(480px,65vw); height:44px; }
+body.voice-session .orb-caption { bottom:40px; }
+body.voice-session #stage.compact #greeting { display:block; }
+body.voice-session #stage.compact .orb-caption { display:flex; }
+body.voice-session footer { position:fixed; left:0; right:0; bottom:0; z-index:12; }
+
+@media (max-width:900px) {
+  body.voice-session { grid-template-rows:54px minmax(0,1fr); }
+  body.voice-session .core,body.voice-session #stage.compact .core { width:min(62vw,390px); height:min(62vw,390px); }
+}
+@media (max-width:560px) {
+  .mode-button { padding:0 12px; }
+  body.text-session .composer { width:calc(100vw - 126px); }
+  #later { display:none; }
+  .entity-label { top:calc(100% + 38px); }
+}
+</style>
+</head>
+<body data-mode="baslatiliyor">
+
+<header>
+  <img class="brand-mark" src="/assets/zestoles-mark.png" alt="">
+  <span class="wordmark">ZESTOLES</span><span class="edition">nexus command</span>
+  <span class="header-stat"><small>LOCAL CORE</small><strong id="top-model">yükleniyor</strong></span>
+  <span class="header-stat"><small>SESSION</small><strong id="top-uptime">00:00:00</strong></span>
+  <span class="spacer"></span>
+  <span class="header-stat"><small>ISTANBUL</small><strong id="clock">--:--:--</strong></span>
+  <span class="pill" id="pill" data-state="baslatiliyor"><span class="dot"></span><span id="pill-text">başlatılıyor</span></span>
+  <button class="ghost" id="stop" hidden>Durdur</button>
+  <button class="ghost" id="ses" hidden aria-pressed="false">Ses</button>
+  <button class="ghost" id="tasks">Görevler</button>
+  <button class="ghost" id="ayar" aria-pressed="false">Ayarlar</button>
+  <button class="ghost quit" id="kapat" title="ZESTOLES'i kapat">Kapat</button>
+</header>
+
+<div class="app-shell">
+  <nav class="nav-rail" aria-label="ZESTOLES bölümleri">
+    <button class="nav-item active" data-view="live-view"><span class="ico">◉</span>LIVE</button>
+    <button class="nav-item" data-view="agents-view"><span class="ico">⌬</span>AJANLAR</button>
+    <button class="nav-item" data-view="research-view"><span class="ico">⌕</span>ARAŞTIR</button>
+    <button class="nav-item" data-view="memory-view"><span class="ico">◈</span>HAFIZA</button>
+    <button class="nav-item" data-view="automation-view"><span class="ico">◷</span>ZAMAN</button>
+    <button class="nav-item" data-view="telegram-view"><span class="ico">➤</span>TELEGRAM</button>
+    <button class="nav-item" data-view="system-view"><span class="ico">⌁</span>SİSTEM</button>
+    <span class="nav-spacer"></span>
+    <button class="nav-item" data-view="settings-view"><span class="ico">⚙</span>AYARLAR</button>
+  </nav>
+
+  <div class="center-stack">
+    <main>
+      <section class="view active" id="live-view">
+        <div id="stage">
+          <div class="core" id="core" title="Konuşmak için tıklayın" role="button" tabindex="0" aria-label="ZESTOLES sesli modu">
+            <div class="entity-reactor" id="entity-reactor">
+              <i></i><i></i><i></i><b></b>
+              <span class="arc arc-a"></span><span class="arc arc-b"></span><span class="arc arc-c"></span>
+              <span class="spark spark-a"></span><span class="spark spark-b"></span><span class="spark spark-c"></span>
+              <img src="/assets/zestoles-mark.png" alt="ZESTOLES">
+              <span class="entity-label">ZESTOLES<small id="entity-state">LOCAL COGNITIVE CORE</small></span>
+            </div>
+          </div>
+          <canvas id="wave" width="520" height="68" aria-hidden="true"></canvas>
+          <div id="greeting">Bağlanıyor…</div>
+          <div class="orb-caption"><span>LOCAL INTELLIGENCE</span><span>VOICE LINK</span><span>AGENT MESH</span></div>
+        </div>
+        <div class="mission-strip">
+          <div class="mission-card"><small>AKTİVİTE</small><strong id="mission-activity">başlatılıyor</strong></div>
+          <div class="mission-card"><small>AJAN AĞI</small><strong id="mission-agents">beklemede</strong></div>
+          <div class="mission-card"><small>ARAŞTIRMA</small><strong id="mission-research">hazır</strong></div>
+          <div class="mission-card"><small>TELEGRAM</small><strong id="mission-telegram">yapılandırılmadı</strong></div>
+        </div>
+        <section id="ayarlar" hidden><div class="wrap" id="ayarlar-govde"></div></section>
+        <section id="task-panel" hidden><div class="wrap" id="tasks-list"></div></section>
+        <div id="thread"><div class="wrap" id="thread-inner"></div></div>
+      </section>
+
+      <section class="view" id="agents-view">
+        <div class="dashboard-head"><div><span class="eyebrow">MULTI-AGENT ORCHESTRATION</span><h1>Ajan Operasyon Merkezi</h1></div><p>Planlama, yürütme, bağımsız doğrulama ve görev kuyruğu tek görünümde.</p></div>
+        <div class="dashboard-grid" id="agents-grid"></div>
+      </section>
+      <section class="view" id="research-view">
+        <div class="dashboard-head"><div><span class="eyebrow">EVIDENCE ENGINE</span><h1>Araştırma İstihbaratı</h1></div><p>Kaynaklar, bağımsız destek, bilgi terfileri ve devam eden araştırmalar.</p></div>
+        <div class="dashboard-grid" id="research-grid"></div>
+      </section>
+      <section class="view" id="memory-view">
+        <div class="dashboard-head"><div><span class="eyebrow">LOCAL MEMORY VAULT</span><h1>Hafıza ve Bilgi</h1></div><p>Kalıcı tercihler, oturum bağlamı ve geri çağrılabilir yerel bilgi kasası.</p></div>
+        <div class="dashboard-grid" id="memory-grid"></div>
+      </section>
+      <section class="view" id="automation-view">
+        <div class="dashboard-head"><div><span class="eyebrow">PERSISTENT AUTOMATION</span><h1>Zaman ve Hatırlatıcılar</h1></div><p>Yeniden başlatmada kaybolmayan zamanlanmış işler ve yerel Windows bildirimleri.</p></div>
+        <div class="dashboard-grid">
+          <div class="dash-card wide"><h3>Bekleyen hatırlatıcılar</h3><div id="reminder-list"><div class="empty-state">Hatırlatıcılar okunuyor.</div></div><div class="button-row"><button class="ghost" id="remindersRefresh">Listeyi yenile</button></div></div>
+          <div class="dash-card"><h3>Doğal dille ekle</h3><div class="security-callout">LIVE ekranında “30 dakika sonra su içmeyi hatırlat” gibi söyleyin. ZESTOLES zamanı çözer ve kurmadan önce onayınızı ister.</div></div>
+          <div class="dash-card"><h3>Desteklenen zamanlar</h3><div class="kv"><span>Göreli</span><b>30 dakika / 2 saat / 3 gün sonra</b></div><div class="kv"><span>Takvim</span><b>yarın 09:30</b></div><div class="kv"><span>Kesin</span><b>2026-09-03 18:40</b></div></div>
+        </div>
+      </section>
+      <section class="view" id="telegram-view">
+        <div class="dashboard-head"><div><span class="eyebrow">SECURE REMOTE LINK</span><h1>Telegram Köprüsü</h1></div><p>Aynı ZESTOLES çekirdeğine kodla eşleştirilmiş, risk kapılarını aşamayan uzaktan erişim.</p></div>
+        <div class="dashboard-grid">
+          <div class="dash-card"><h3>Bağlantı</h3><div id="telegram-status" class="dash-list"></div>
+            <div class="security-callout">Eski projedeki anahtar güvenli değildi. BotFather’dan yenisini üretip yalnızca buraya girin; ekranda ve günlüklerde tekrar gösterilmez.</div>
+            <div class="secret-row"><input id="telegram-token" type="password" autocomplete="off" placeholder="Yeni bot anahtarı"><button class="ghost" id="telegramSave">Doğrula ve kaydet</button></div>
+            <div class="button-row"><button class="ghost" id="telegramStart">Bağlantıyı aç</button><button class="ghost" id="telegramStop">Durdur</button><button class="ghost" id="telegramPair">Eşleştirme kodu</button><button class="ghost quit" id="telegramDisconnect">Bağlantıyı kaldır</button></div>
+            <div id="telegram-pair-result"></div><div class="note" id="telegram-result"></div>
+          </div>
+          <div class="dash-card"><h3>Güvenlik sınırı</h3><div class="kv"><span>Sahip doğrulama</span><b>10 dakikalık yerel kod</b></div><div class="kv"><span>Bilgisayar eylemleri</span><b>aynı risk/onay kapısı</b></div><div class="kv"><span>Kimlik bilgisi</span><b>data/secrets · Git dışında</b></div><div class="kv"><span>Uzak kullanıcılar</span><b>varsayılan reddet</b></div></div>
+          <div class="dash-card wide"><h3>Canlı Telegram akışı</h3><div id="telegram-log"><div class="empty-state">Mesaj akışı bekleniyor.</div></div></div>
+        </div>
+      </section>
+      <section class="view" id="system-view">
+        <div class="dashboard-head"><div><span class="eyebrow">MACHINE TELEMETRY</span><h1>Sistem ve Modeller</h1></div><p>Gerçek ölçümler; bilinmeyen hiçbir değer sıfırmış gibi gösterilmez.</p></div>
+        <div class="dashboard-grid" id="system-grid"></div>
+      </section>
+      <section class="view" id="settings-view">
+        <div class="dashboard-head"><div><span class="eyebrow">CONTROL PLANE</span><h1>ZESTOLES Ayarları</h1></div><p>Yalnızca güvenli olarak canlı değiştirilebilen ayarlar burada sunulur.</p></div>
+        <div class="dashboard-grid"><div class="dash-card wide" id="settings-host"></div></div>
+      </section>
+    </main>
+
+    <footer id="interaction-footer">
+      <div class="wrap">
+        <div class="interaction-dock">
+          <button class="mode-button" id="mic" hidden aria-pressed="false" title="Sesli modu aç" aria-label="Sesli modu aç">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+          </button>
+          <button class="mode-button" id="writeMode" aria-pressed="false" title="Yazarak konuş"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v12H8l-4 3V5Z"/><path d="M8 9h8M8 13h5"/></svg><span>YAZ</span></button>
+          <div class="composer">
+            <textarea id="input" rows="1" placeholder="ZESTOLES'e yazın…" autocomplete="off"></textarea>
+            <button class="ghost" id="later" title="Arka planda yap">Sonra</button>
+            <button class="round" id="send" title="Gönder" aria-label="Gönder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button>
+          </div>
+        </div>
+        <div class="hint"><span><kbd>Enter</kbd> gönder</span><span><kbd>Shift</kbd>+<kbd>Enter</kbd> satır</span><span><kbd>Ctrl</kbd>+<kbd>Enter</kbd> sonra yap</span><span class="spacer"></span><span id="conn">—</span></div>
+      </div>
+    </footer>
+  </div>
+
+  <aside class="telemetry">
+    <div class="rail-title"><span>LIVE TELEMETRY</span><b id="telemetry-link">● LINKING</b></div>
+    <div class="tele-card"><h3>Kaynak yükü</h3>
+      <div class="meter"><label>CPU</label><div class="meter-track"><div class="meter-fill" id="cpu-bar"></div></div><output id="cpu-value">—</output></div>
+      <div class="meter"><label>RAM</label><div class="meter-track"><div class="meter-fill" id="ram-bar"></div></div><output id="ram-value">—</output></div>
+      <div class="meter"><label>GPU</label><div class="meter-track"><div class="meter-fill" id="gpu-bar"></div></div><output id="gpu-value">—</output></div>
+      <div class="meter"><label>VRAM</label><div class="meter-track"><div class="meter-fill" id="vram-bar"></div></div><output id="vram-value">—</output></div>
+    </div>
+    <div class="tele-card"><h3>Intelligence core</h3><div class="kv"><span>Model</span><b id="rail-model">—</b></div><div class="kv"><span>Ses</span><b id="rail-voice">ölçülmedi</b></div><div class="kv"><span>Otonomi</span><b id="rail-autonomy">—</b></div><div class="kv"><span>Hafıza</span><b id="rail-memory">—</b></div></div>
+    <div class="tele-card"><h3>Olay akışı</h3><div id="event-feed"><div class="event-line">Komuta merkezi açılıyor<small>şimdi</small></div></div></div>
+  </aside>
+</div>
+
+<div id="kapanis">
+  <div class="baslik">ZESTOLES kapandı.</div>
+  <div class="alt">Bu pencereyi kapatabilirsiniz.</div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  var TOKEN = "__JARVIS_TOKEN__";
+
+  var thread   = document.getElementById("thread");
+  var inner    = document.getElementById("thread-inner");
+  var input    = document.getElementById("input");
+  var send     = document.getElementById("send");
+  var micBtn   = document.getElementById("mic");
+  var stopBtn  = document.getElementById("stop");
+  var pill     = document.getElementById("pill");
+  var pillText = document.getElementById("pill-text");
+  var stage    = document.getElementById("stage");
+  var core     = document.getElementById("core");
+  var entityReactor = document.getElementById("entity-reactor");
+  var entityState = document.getElementById("entity-state");
+  var writeModeBtn = document.getElementById("writeMode");
+  var greeting = document.getElementById("greeting");
+  var conn     = document.getElementById("conn");
+  var wave     = document.getElementById("wave");
+  var laterBtn = document.getElementById("later");
+  var tasksBtn = document.getElementById("tasks");
+  var tasksPane = document.getElementById("task-panel");
+  var tasksList = document.getElementById("tasks-list");
+  var ayarBtn  = document.getElementById("ayar");
+  var ayarPane = document.getElementById("ayarlar");
+  var ayarGovde = document.getElementById("ayarlar-govde");
+  var sesBtn   = document.getElementById("ses");
+  var kapatBtn = document.getElementById("kapat");
+  var settingsHost = document.getElementById("settings-host");
+  var lastSnapshot = null;
+
+  // ============================================================= NEXUS NAV
+  function openView(id) {
+    Array.prototype.forEach.call(document.querySelectorAll(".view"), function (view) {
+      view.classList.toggle("active", view.id === id);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".nav-item[data-view]"), function (button) {
+      button.classList.toggle("active", button.dataset.view === id);
+    });
+    if (id === "settings-view") loadSettingsView();
+    if (id === "telegram-view") refreshTelegram();
+    if (id === "automation-view") refreshReminders();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".nav-item[data-view]"), function (button) {
+    button.onclick = function () { openView(button.dataset.view); };
+  });
+
+  function setText(id, value) {
+    var node = document.getElementById(id);
+    if (node) node.textContent = (value === null || value === undefined || value === "") ? "—" : String(value);
+  }
+  function section(snapshot, name) {
+    var raw = snapshot && snapshot.sections && snapshot.sections[name];
+    return raw && raw.data ? raw.data : (raw || {});
+  }
+  function metric(name, value) {
+    var bar = document.getElementById(name + "-bar");
+    var out = document.getElementById(name + "-value");
+    var known = typeof value === "number" && isFinite(value);
+    if (bar) bar.style.setProperty("--load", known ? Math.max(0, Math.min(100, value)) : 0);
+    if (out) out.textContent = known ? Math.round(value) + " yüzde" : "—";
+  }
+  function duration(seconds) {
+    if (typeof seconds !== "number") return "—";
+    var s = Math.max(0, Math.floor(seconds));
+    var h = String(Math.floor(s / 3600)).padStart(2, "0");
+    var m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    return h + ":" + m + ":" + String(s % 60).padStart(2, "0");
+  }
+  function readable(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "boolean") return value ? "açık" : "kapalı";
+    if (Array.isArray(value)) return value.length ? value.join(", ") : "boş";
+    if (typeof value === "object") return Object.keys(value).map(function (k) { return k + ": " + value[k]; }).join(" · ") || "boş";
+    return String(value);
+  }
+  function humanKey(key) {
+    return String(key).replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+  function kvRows(parent, data, limit) {
+    var keys = Object.keys(data || {}).filter(function (key) {
+      return key !== "resources" && key !== "warnings" && key !== "last_event";
+    }).slice(0, limit || 12);
+    if (!keys.length) { parent.appendChild(el("div", "empty-state", "Canlı veri bekleniyor.")); return; }
+    keys.forEach(function (key) {
+      var row = el("div", "kv"); row.appendChild(el("span", null, humanKey(key)));
+      row.appendChild(el("b", null, readable(data[key]))); parent.appendChild(row);
+    });
+  }
+  function dashCard(title, data, wide) {
+    var card = el("div", "dash-card" + (wide ? " wide" : ""));
+    card.appendChild(el("h3", null, title)); kvRows(card, data, 14); return card;
+  }
+  function renderGrid(id, cards) {
+    var grid = document.getElementById(id); if (!grid) return;
+    grid.textContent = ""; cards.forEach(function (card) { grid.appendChild(card); });
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot || !snapshot.sections) return;
+    updateClock();
+    lastSnapshot = snapshot;
+    var system = section(snapshot, "system");
+    var brain = section(snapshot, "brain");
+    var memory = section(snapshot, "memory");
+    var autonomy = section(snapshot, "autonomy");
+    var agents = section(snapshot, "agents");
+    var research = section(snapshot, "research");
+    var lab = section(snapshot, "lab");
+    var improve = section(snapshot, "improve");
+    var resources = system.resources || {};
+    metric("cpu", resources.cpu); metric("ram", resources.ram); metric("gpu", resources.gpu);
+    var vram = (typeof resources.vram_used_mb === "number" && typeof resources.vram_total_mb === "number" && resources.vram_total_mb > 0)
+      ? resources.vram_used_mb / resources.vram_total_mb * 100 : null;
+    metric("vram", vram);
+    setText("top-model", brain.local_model || brain.model || "yerel çekirdek");
+    setText("rail-model", brain.local_model || brain.model);
+    setText("top-uptime", duration(snapshot.uptime_s));
+    setText("mission-activity", snapshot.activity_detail || snapshot.activity);
+    setText("mission-agents", agents.running || agents.active || agents.last_event || "hazır");
+    setText("mission-research", research.running || research.active || research.last_event || "hazır");
+    setText("rail-autonomy", autonomy.running !== undefined ? (autonomy.running ? "aktif" : "beklemede") : (autonomy.last_event || "—"));
+    setText("rail-memory", memory.notes || memory.count || memory.total || memory.last_event || "yerel");
+    renderGrid("agents-grid", [dashCard("Ajan ağı", agents), dashCard("Otonom görev motoru", autonomy), dashCard("Deney laboratuvarı", lab), dashCard("İyileştirme kapısı", improve)]);
+    renderGrid("research-grid", [dashCard("Araştırma motoru", research), dashCard("Kanıt ve bilgi durumu", {bagimsiz_kaynak_kurali:"en az 2", web_saglayicilari:"SearXNG · DuckDuckGo · GitHub · Wikipedia · StackExchange", bilgi_yazimi:research.write_knowledge}, true)]);
+    renderGrid("memory-grid", [dashCard("Yerel hafıza", memory), dashCard("Bağlam ilkeleri", {kalici_kasa:"yerel", konusma_baglamı:"bütçeli", anlamsal_geri_cagirma:"aktif", model_verisi:"bu bilgisayarda"})]);
+    renderGrid("system-grid", [dashCard("Makine kaynakları", resources), dashCard("Model çekirdeği", brain), dashCard("Çalışma zamanı", {uptime:duration(snapshot.uptime_s), aktivite:snapshot.activity, detay:snapshot.activity_detail, durum_surumu:snapshot.version}), dashCard("Uyarılar", {uyarilar:system.warnings || []})]);
+  }
+
+  function feedEvent(env) {
+    updateClock();
+    var feed = document.getElementById("event-feed"); if (!feed) return;
+    var p = env.payload || {}; var line = el("div", "event-line", p.label || env.type);
+    line.appendChild(el("small", null, (p.source || "core") + " · " + new Date().toLocaleTimeString("tr-TR")));
+    feed.insertBefore(line, feed.firstChild);
+    while (feed.children.length > 12) feed.removeChild(feed.lastChild);
+  }
+
+  function updateClock() {
+    setText("clock", new Date().toLocaleTimeString("tr-TR", {hour12:false}));
+  }
+  updateClock();
+
+  var LABEL = {
+    baslatiliyor: "başlatılıyor", hazir: "hazır", dinliyor: "dinliyor",
+    anliyor: "anlıyor", dusunuyor: "düşünüyor", calisiyor: "çalışıyor",
+    onay: "onay bekliyor", konusuyor: "konuşuyor", hata: "hata",
+    cevrimdisi: "çevrimdışı", kapaniyor: "kapanıyor", kapandi: "kapandı"
+  };
+
+  var TASK_STATE = {
+    pending: "sırada", running: "çalışıyor", done: "bitti",
+    cancelled: "iptal edildi", failed: "başarısız", quarantined: "vazgeçildi"
+  };
+
+  var busy = false;
+  var requestEpoch = 0;      // invalidates replies from interrupted turns
+  var live = null;
+  var closed = false;
+
+  function setMode(mode) {
+    // Once closed, nothing may put the page back into a working state: the
+    // socket is gone and so is the process behind it.
+    if (closed && mode !== "kapandi") return;
+    document.body.dataset.mode = mode;
+    pill.dataset.state = mode;
+    pillText.textContent = LABEL[mode] || mode;
+    entityState.textContent = (LABEL[mode] || mode).toUpperCase() + " · LOCAL CORE";
+    var working = (mode === "dusunuyor" || mode === "calisiyor" || mode === "anliyor");
+    stopBtn.hidden = !(working || mode === "konusuyor" || mode === "dinliyor");
+    send.disabled = working || mode === "cevrimdisi" || mode === "kapaniyor" || mode === "kapandi";
+  }
+  function currentMode() { return document.body.dataset.mode; }
+
+  function setInputMode(mode) {
+    var textMode = mode === "text";
+    document.body.classList.toggle("text-session", textMode);
+    document.body.classList.toggle("voice-session", mode === "voice");
+    writeModeBtn.setAttribute("aria-pressed", textMode ? "true" : "false");
+    if (textMode) {
+      if (recording) stopMic();
+      input.focus();
+    }
+  }
+
+  function compact() { if (!stage.classList.contains("compact")) stage.classList.add("compact"); }
+  function atBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120; }
+  function scroll(force) { if (force || atBottom()) thread.scrollTop = thread.scrollHeight; }
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function inlineRich(parent, text) {
+    // Parse a deliberately tiny Markdown subset using DOM nodes only. Model
+    // output never reaches innerHTML, so a reply cannot create executable UI.
+    var pattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\))/g;
+    var at = 0, match;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > at) parent.appendChild(document.createTextNode(text.slice(at, match.index)));
+      var token = match[0];
+      if (token.slice(0, 2) === "**") {
+        parent.appendChild(el("strong", null, token.slice(2, -2)));
+      } else if (token.charAt(0) === "`") {
+        parent.appendChild(el("code", null, token.slice(1, -1)));
+      } else {
+        var cut = token.lastIndexOf("](");
+        var link = el("a", null, token.slice(1, cut));
+        link.href = token.slice(cut + 2, -1); link.target = "_blank"; link.rel = "noopener noreferrer";
+        parent.appendChild(link);
+      }
+      at = pattern.lastIndex;
+    }
+    if (at < text.length) parent.appendChild(document.createTextNode(text.slice(at)));
+  }
+
+  function richBody(text) {
+    var body = el("div", "body");
+    var lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+    var code = null, language = "";
+    lines.forEach(function (line) {
+      if (line.slice(0, 3) === "```") {
+        if (code !== null) {
+          var pre = el("pre"); pre.dataset.language = language;
+          pre.textContent = code.join("\n"); body.appendChild(pre); code = null; language = "";
+        } else { code = []; language = line.slice(3).trim(); }
+        return;
+      }
+      if (code !== null) { code.push(line); return; }
+      var heading = line.match(/^#{1,4}\s+(.+)/);
+      var bullet = line.match(/^\s*(?:[-*+] |\d+[.)] )(.+)/);
+      var node;
+      if (heading) node = el("div", "heading", heading[1]);
+      else if (bullet) { node = el("div", "bullet"); inlineRich(node, bullet[1]); }
+      else { node = el("div", "prose-line"); inlineRich(node, line); }
+      body.appendChild(node);
+    });
+    if (code !== null) { var tail = el("pre"); tail.textContent = code.join("\n"); body.appendChild(tail); }
+    return body;
+  }
+
+  function message(who, text, spoken) {
+    var wrap = el("div", "msg " + who);
+    var head = el("div", "who", who === "user" ? "Sen" : "ZESTOLES");
+    if (spoken) head.appendChild(el("span", "sesli", "· sesli"));
+    wrap.appendChild(head);
+    wrap.appendChild(richBody(text));
+    inner.appendChild(wrap);
+    compact(); scroll(true);
+    return wrap;
+  }
+
+  function note(text, bad) {
+    var node = el("div", "note" + (bad ? " bad" : ""), text);
+    inner.appendChild(node); scroll();
+    return node;
+  }
+
+  // Tool cards come from the event stream, never from the reply. If the backend
+  // did not run a tool, no card appears — there is nowhere here to invent one.
+  function toolCard(name, detail) {
+    var card = el("div", "tool run");
+    card.appendChild(el("div", "mark", "●"));
+    var what = el("div", "what");
+    what.appendChild(el("div", "name", name));
+    var d = el("div", "detail", detail || "çalışıyor…");
+    what.appendChild(d);
+    card.appendChild(what);
+    card.detailNode = d;
+    inner.appendChild(card); compact(); scroll();
+    return card;
+  }
+
+  function finishCard(card, ok, detail) {
+    if (!card) return;
+    card.classList.remove("run");
+    card.classList.add(ok ? "ok" : "bad");
+    card.querySelector(".mark").textContent = ok ? "✓" : "✕";
+    if (detail) card.detailNode.textContent = detail;
+    scroll();
+  }
+
+  function post(payload) {
+    return fetch("/istek", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Jarvis-Token": TOKEN },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  }
+
+  function render(result, spoken) {
+    if (result.hata && !result.cevap) { note(result.hata, true); setMode("hazir"); return; }
+    if (result.durum === "onay_bekliyor" && result.bekleyen) { askFor(result.bekleyen); return; }
+
+    if (result.cevap) message("jarvis", result.cevap, spoken);
+    if (result.durduruldu && !result.iptal) note(result.durduruldu, true);
+    if (result.iptal) note("İptal edildi.");
+
+    // Said by the interface, not by the model. `basarili` is computed from the
+    // recorded tool results, so a reply claiming success over a failure is
+    // contradicted here rather than repeated.
+    var failed = result.basarisiz || [];
+    if (failed.length) {
+      note(failed.length + " araç çağrısı başarısız oldu (" + failed.join(", ") + ")", true);
+      setMode("hata");
+      setTimeout(function () { if (!busy) setMode("hazir"); }, 2600);
+    } else if (!playback.playing) {
+      setMode(recording ? "dinliyor" : "hazir");
+    }
+  }
+
+  function askFor(pending) {
+    setMode("onay");
+    var card = el("div", "ask");
+    card.appendChild(el("h4", null, "Onay gerekiyor — " + pending.arac + " (" + pending.risk + ")"));
+    var args = Object.keys(pending.argumanlar || {}).map(function (k) {
+      return k + ": " + pending.argumanlar[k];
+    }).join("\n");
+    if (args) card.appendChild(el("div", "args", args));
+    var row = el("div", "row");
+    var yes = el("button", "ghost yes", "Onayla");
+    var no  = el("button", "ghost", "Vazgeç");
+    row.appendChild(yes); row.appendChild(no);
+    card.appendChild(row);
+    inner.appendChild(card); compact(); scroll(true);
+
+    function answer(ok) {
+      yes.disabled = true; no.disabled = true;
+      setMode(ok ? "calisiyor" : "hazir");
+      busy = ok;
+      post({ op: "onay", evet: ok }).then(function (r) {
+        busy = false;
+        render(r);
+        if (voiceOn && r && r.cevap) speakAnswer(r.cevap);
+      }).catch(function (e) {
+        busy = false; note("Bağlantı hatası: " + e.message, true); setMode("hata");
+      });
+    }
+    yes.onclick = function () { answer(true); };
+    no.onclick  = function () { answer(false); };
+  }
+
+  function submit() {
+    var text = input.value.trim();
+    if (!text || busy) return;
+    input.value = ""; input.style.height = "auto";
+    message("user", text);
+    var epoch = ++requestEpoch;
+    busy = true; setMode("dusunuyor");
+    post({ op: "sor", mesaj: text }).then(function (r) {
+      if (epoch !== requestEpoch) return;
+      busy = false;
+      render(r);
+      if (voiceOn && r && r.cevap) speakAnswer(r.cevap);
+    }).catch(function (e) {
+      if (epoch !== requestEpoch) return;
+      busy = false; note("Bağlantı hatası: " + e.message, true); setMode("hata");
+    });
+  }
+
+  // ================================================================== VOICE
+  // The microphone, the endpointing and the interruption all live here rather
+  // than on the server, because all three are decisions measured in
+  // milliseconds and a round trip would put the network inside them. The server
+  // receives one finished segment of speech and returns an answer.
+  var audioCtx = null;
+  var micStream = null;
+  var micNode = null;
+  var analyser = null;
+  var outputAnalyser = null;
+  var recording = false;      // the microphone is open
+  var capturing = false;      // we are inside an utterance
+  var frames = [];            // Float32 chunks of the current utterance
+  var speechStart = 0;
+  var lastVoiceAt = 0;
+  var silenceMs = 0;
+  var waveTimer = null;
+  var voiceReady = false;
+  var voiceOn = false;
+  var ackSent = false;
+  var activeVoiceTurn = null;
+
+  // Endpointing. Turkish sentences pause mid-thought ("şu dosyayı… açar
+  // mısın"), so the silence window is deliberately longer than the 300 ms that
+  // works for English — cutting someone off mid-sentence is the failure people
+  // notice first.
+  var VAD = {
+    startLevel: 0.020,      // rms to call it speech
+    keepLevel: 0.011,       // rms to stay in speech (hysteresis)
+    silenceMs: 850,         // quiet for this long ends the turn
+    minSpeechMs: 320,       // shorter than this is a click or a breath
+    maxTurnMs: 30000,       // a hard ceiling, so nothing records forever
+    ackAfterMs: 5000        // a long turn earns a short acknowledgement
+  };
+
+  var playback = { queue: [], playing: false, source: null, turn: null };
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    if (!outputAnalyser) {
+      outputAnalyser = audioCtx.createAnalyser();
+      outputAnalyser.fftSize = 1024;
+      outputAnalyser.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  // ---------------------------------------------------------------- output
+  function stopSpeaking() {
+    playback.queue.length = 0;
+    playback.turn = null;   // kesilen turun yoldaki parcalari artik dusurulur
+    activeVoiceTurn = null;
+    if (playback.source) {
+      try { playback.source.onended = null; playback.source.stop(); } catch (e) {}
+      playback.source = null;
+    }
+    playback.playing = false;
+    if (currentMode() === "konusuyor" && !closed) setMode(recording ? "dinliyor" : "hazir");
+  }
+
+  function enqueue(clips, turn) {
+    if (!clips || !clips.length) return;
+    // Akis parcalari tur anahtariyla gelir. Anahtar yoksa (yerel sentez) her
+    // zaman kabul; anahtar varsa: bos iken benimsenir (yanittan ONCE gelen
+    // erken cumleler boyle kilitlenir), farkliysa kesilen turun gec misafiri-
+    // dir ve dusurulur.
+    if (turn !== undefined) {
+      if (!activeVoiceTurn || turn !== activeVoiceTurn) return;
+      if (!playback.turn) playback.turn = turn;   // erken cümle: turu benimse
+      else if (playback.turn !== turn) return;    // kesilmiş turun misafiri
+    }
+    if (!ensureAudio()) return;
+    clips.forEach(function (clip) { playback.queue.push(clip); });
+    if (!playback.playing) playNext();
+  }
+
+  function playNext() {
+    var clip = playback.queue.shift();
+    if (!clip) {
+      playback.playing = false;
+      playback.source = null;
+      if (currentMode() === "konusuyor" && !closed) setMode(recording ? "dinliyor" : "hazir");
+      return;
+    }
+    var ctx = ensureAudio();
+    if (!ctx) return;
+    playback.playing = true;
+    var bytes = atob(clip.ses);
+    var buffer = new ArrayBuffer(bytes.length);
+    var view = new Uint8Array(buffer);
+    for (var i = 0; i < bytes.length; i++) view[i] = bytes.charCodeAt(i);
+    ctx.decodeAudioData(buffer, function (decoded) {
+      if (!playback.playing) return;        // interrupted while decoding
+      var source = ctx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(outputAnalyser);
+      playback.source = source;
+      if (!closed) setMode("konusuyor");
+      startWave();
+      source.onended = function () { if (playback.playing) playNext(); };
+      source.start();
+    }, function () { playNext(); });
+  }
+
+  function speakAnswer(text) {
+    if (!voiceOn || !text) return;
+    post({ op: "seslendir", metin: text }).then(function (r) {
+      if (r && r.parcalar) enqueue(r.parcalar);
+    }).catch(function () { /* silence is an acceptable failure for speech */ });
+  }
+
+  // ----------------------------------------------------------------- input
+  function startMic() {
+    if (recording) return Promise.resolve(true);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      note("Bu tarayıcı mikrofona erişemiyor.", true);
+      return Promise.resolve(false);
+    }
+    return navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true,
+               autoGainControl: true }
+    }).then(function (stream) {
+      var ctx = ensureAudio();
+      micStream = stream;
+      var source = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      // ScriptProcessor is deprecated but universally available and, at one
+      // callback per 4096 frames, cheap. AudioWorklet needs a separate module
+      // file, which a single-file page cannot have.
+      micNode = ctx.createScriptProcessor(4096, 1, 1);
+      source.connect(analyser);
+      analyser.connect(micNode);
+      micNode.connect(ctx.destination);
+      micNode.onaudioprocess = onAudio;
+      recording = true;
+      micBtn.setAttribute("aria-pressed", "true");
+      setInputMode("voice");
+      setMode("dinliyor");
+      startWave();
+      return true;
+    }).catch(function (err) {
+      note("Mikrofon açılamadı: " + (err && err.message ? err.message : err), true);
+      return false;
+    });
+  }
+
+  function stopMic() {
+    recording = false;
+    capturing = false;
+    frames = [];
+    micBtn.setAttribute("aria-pressed", "false");
+    if (micNode) { try { micNode.disconnect(); micNode.onaudioprocess = null; } catch (e) {} micNode = null; }
+    if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
+    if (!playback.playing) stopWave();
+    if (!closed && currentMode() === "dinliyor") setMode("hazir");
+    if (document.body.classList.contains("voice-session")) setInputMode("idle");
+  }
+
+  function rms(buffer) {
+    var total = 0;
+    for (var i = 0; i < buffer.length; i++) total += buffer[i] * buffer[i];
+    return Math.sqrt(total / buffer.length);
+  }
+
+  function onAudio(event) {
+    if (!recording) return;
+    // Full-duplex barge-in created overlapping turns and fed the assistant its
+    // own speech through the room. While a turn is thinking or speaking the
+    // microphone remains open, but every sample is deliberately discarded.
+    // Listening resumes only after ZESTOLES has finished.
+    if (playback.playing || busy) {
+      capturing = false;
+      frames = [];
+      silenceMs = 0;
+      return;
+    }
+    var samples = event.inputBuffer.getChannelData(0);
+    var level = rms(samples);
+    var now = performance.now();
+    var frameMs = (samples.length / audioCtx.sampleRate) * 1000;
+
+    if (!capturing) {
+      if (level >= VAD.startLevel) {
+        capturing = true;
+        frames = [new Float32Array(samples)];
+        speechStart = now;
+        lastVoiceAt = now;
+        silenceMs = 0;
+        ackSent = false;
+      }
+      return;
+    }
+
+    frames.push(new Float32Array(samples));
+    if (level >= VAD.keepLevel) {
+      lastVoiceAt = now;
+      silenceMs = 0;
+      // A long turn earns a short "hı hı". The server decides whether one is
+      // warranted; this only reports that the user is still going.
+      if (!ackSent && !playback.playing && now - speechStart >= VAD.ackAfterMs) {
+        ackSent = true;
+        post({ op: "onay_sesi", saniye: (now - speechStart) / 1000, guven: 1 })
+          .then(function (r) { if (r && r.parcalar) enqueue(r.parcalar); })
+          .catch(function () {});
+      }
+    } else {
+      silenceMs += frameMs;
+    }
+
+    var spoken = now - speechStart;
+    if (silenceMs >= VAD.silenceMs || spoken >= VAD.maxTurnMs) {
+      var voiced = lastVoiceAt - speechStart;
+      var collected = frames;
+      capturing = false;
+      frames = [];
+      if (voiced >= VAD.minSpeechMs) sendUtterance(collected);
+    }
+  }
+
+  function sendUtterance(chunks) {
+    var wav = encodeWav(chunks, audioCtx.sampleRate, 16000);
+    if (!wav) return;
+    setMode("anliyor");
+    var epoch = ++requestEpoch;
+    var voiceTurn = "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    activeVoiceTurn = voiceTurn;
+    playback.turn = voiceTurn;
+    busy = true;
+    var answered = false;
+
+    // The model is the long part of the wait. If it is still thinking after a
+    // beat, say so -- the same thing a person does. Cancelled the moment the
+    // real answer arrives, so it can never talk over it.
+    var thinking = setTimeout(function () {
+      if (answered || epoch !== requestEpoch || playback.playing || closed) return;
+      post({ op: "onay_sesi", saniye: 0, guven: 1, dusunme: true })
+        .then(function (r) {
+          if (answered || playback.playing) return;
+          if (r && r.parcalar) enqueue(r.parcalar);
+        }).catch(function () {});
+    }, 1400);
+
+    post({ op: "dinle", ses: wav.base64, saniye: wav.seconds, tur: voiceTurn }).then(function (r) {
+      answered = true;
+      clearTimeout(thinking);
+      if (epoch !== requestEpoch || activeVoiceTurn !== voiceTurn) return;
+      busy = false;
+      if (!r) { setMode(recording ? "dinliyor" : "hazir"); return; }
+      if (r.hata) { note(r.hata, true); setMode(recording ? "dinliyor" : "hazir"); return; }
+      if (r.duyulmadi) {
+        note("Seni duyamadım (" + (r.sebep || "anlaşılmadı") + ").");
+        setMode(recording ? "dinliyor" : "hazir");
+        return;
+      }
+      if (r.metin) message("user", r.metin, true);
+      render(r, true);
+      // Akiskan cevap: ilk parcalar yanitla geldi, kalani olay yoluyla "tur"
+      // anahtariyla akacak. Anahtar burada acilir; kesme aninda kapanir.
+      playback.turn = r.tur || null;
+      if (r.parcalar && r.parcalar.length) enqueue(r.parcalar);
+    }).catch(function (e) {
+      answered = true;
+      clearTimeout(thinking);
+      if (epoch !== requestEpoch) return;
+      busy = false;
+      note("Ses gönderilemedi: " + e.message, true);
+      setMode(recording ? "dinliyor" : "hazir");
+    });
+  }
+
+  // Downsample to 16 kHz mono PCM16 and wrap it in a WAV header. Whisper wants
+  // 16 kHz; sending 48 kHz would triple the upload for no accuracy.
+  function encodeWav(chunks, sourceRate, targetRate) {
+    var total = 0, i, j;
+    for (i = 0; i < chunks.length; i++) total += chunks[i].length;
+    if (!total) return null;
+    var joined = new Float32Array(total);
+    var offset = 0;
+    for (i = 0; i < chunks.length; i++) { joined.set(chunks[i], offset); offset += chunks[i].length; }
+
+    var ratio = sourceRate / targetRate;
+    var outLength = Math.floor(joined.length / ratio);
+    var samples = new Int16Array(outLength);
+    for (i = 0; i < outLength; i++) {
+      var start = Math.floor(i * ratio);
+      var end = Math.min(joined.length, Math.floor((i + 1) * ratio));
+      var sum = 0, count = 0;
+      for (j = start; j < end; j++) { sum += joined[j]; count++; }
+      var value = count ? sum / count : 0;
+      samples[i] = Math.max(-1, Math.min(1, value)) * 32767;
+    }
+
+    var header = new ArrayBuffer(44);
+    var view = new DataView(header);
+    function ascii(pos, text) { for (var k = 0; k < text.length; k++) view.setUint8(pos + k, text.charCodeAt(k)); }
+    ascii(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true);
+    ascii(8, "WAVEfmt "); view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, targetRate, true); view.setUint32(28, targetRate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ascii(36, "data"); view.setUint32(40, samples.length * 2, true);
+
+    var bytes = new Uint8Array(44 + samples.length * 2);
+    bytes.set(new Uint8Array(header), 0);
+    bytes.set(new Uint8Array(samples.buffer), 44);
+
+    var binary = "";
+    for (i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return { base64: btoa(binary), seconds: outLength / targetRate };
+  }
+
+  // -------------------------------------------------------------- waveform
+  // The only animation frame loop on this page, and it runs solely while the
+  // microphone is open or JARVIS is speaking. Idle costs nothing.
+  function startWave() {
+    if (waveTimer) return;
+    var ctx2d = wave.getContext("2d");
+    var data = new Uint8Array(512);
+    function frame() {
+      if (!recording && !playback.playing) {
+        waveTimer = null; clearWave(ctx2d); entityReactor.style.transform = ""; return;
+      }
+      var energy = drawWave(ctx2d, data);
+      entityReactor.style.transform = "scale(" + (1 + energy * (playback.playing ? .11 : .045)).toFixed(3) + ")";
+      waveTimer = requestAnimationFrame(frame);
+    }
+    waveTimer = requestAnimationFrame(frame);
+  }
+
+  function stopWave() {
+    if (waveTimer) { cancelAnimationFrame(waveTimer); waveTimer = null; }
+    entityReactor.style.transform = "";
+    clearWave(wave.getContext("2d"));
+  }
+
+  function clearWave(ctx2d) { ctx2d.clearRect(0, 0, wave.width, wave.height); }
+
+  function drawWave(ctx2d, data) {
+    var w = wave.width, h = wave.height;
+    ctx2d.clearRect(0, 0, w, h);
+    var speaking = playback.playing;
+    var level = 0;
+    var liveAnalyser = speaking ? outputAnalyser : analyser;
+    if (liveAnalyser && (recording || speaking)) {
+      liveAnalyser.getByteTimeDomainData(data);
+      var peak = 0;
+      for (var i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i] - 128) / 128);
+      level = peak;
+    }
+    var bars = 34, gap = 3;
+    var barW = (w - gap * (bars - 1)) / bars;
+    ctx2d.fillStyle = speaking ? "rgba(77,184,255,.85)" : "rgba(120,200,255,.7)";
+    for (var b = 0; b < bars; b++) {
+      var centre = 1 - Math.abs((b / (bars - 1)) - 0.5) * 2;
+      var wobble = 0.55 + 0.45 * Math.sin((performance.now() / 90) + b * 0.7);
+      var amp = Math.max(0.04, level * centre * wobble);
+      var barH = Math.max(2, amp * h);
+      ctx2d.fillRect(b * (barW + gap), (h - barH) / 2, barW, barH);
+    }
+    return level;
+  }
+
+  // ------------------------------------------------------------ mic control
+  function toggleMic() {
+    if (recording) { stopMic(); return; }
+    if (!voiceReady) { note("Ses katmanı bu kurulumda hazır değil.", true); return; }
+    startMic().then(function (ok) {
+      if (!ok) return;
+      voiceOn = true;
+      sesBtn.setAttribute("aria-pressed", "true");
+      sesBtn.textContent = "Ses açık";
+      try { localStorage.setItem("jarvis.ses", "1"); } catch (e) {}
+      post({ op: "ses_hazirla" }).catch(function () {});
+    });
+  }
+
+  micBtn.onclick = toggleMic;
+  core.onclick = function () { if (voiceReady) toggleMic(); };
+  core.onkeydown = function (event) {
+    if ((event.key === "Enter" || event.key === " ") && voiceReady) { event.preventDefault(); toggleMic(); }
+  };
+  writeModeBtn.onclick = function () {
+    if (document.body.classList.contains("text-session")) setInputMode("idle");
+    else setInputMode("text");
+  };
+
+  sesBtn.onclick = function () {
+    voiceOn = !voiceOn;
+    sesBtn.setAttribute("aria-pressed", voiceOn ? "true" : "false");
+    sesBtn.textContent = voiceOn ? "Ses açık" : "Ses";
+    if (!voiceOn) { stopSpeaking(); if (recording) stopMic(); }
+    try { localStorage.setItem("jarvis.ses", voiceOn ? "1" : "0"); } catch (e) {}
+  };
+
+  function loadVoice() {
+    post({ op: "ses_durum" }).then(function (r) {
+      voiceReady = !!(r && r.kullanilabilir);
+      setText("rail-voice", voiceReady ? "hazır" : "kapalı");
+      micBtn.hidden = !voiceReady;
+      sesBtn.hidden = !voiceReady;
+      if (!voiceReady) {
+        // Hidden rather than disabled: a control for something this
+        // installation cannot do is a promise, and §47 forbids those.
+        var why = (r && (r.sebep || (r.stt && r.stt.sebep) || (r.tts && r.tts.sebep))) || "";
+        if (why) conn.title = "ses: " + why;
+        return;
+      }
+      var remembered = null;
+      try { remembered = localStorage.getItem("jarvis.ses"); } catch (e) {}
+      if (remembered === "1") {
+        voiceOn = true;
+        sesBtn.setAttribute("aria-pressed", "true");
+        sesBtn.textContent = "Ses açık";
+      }
+      post({ op: "ses_hazirla" }).catch(function () {});
+    }).catch(function () { micBtn.hidden = true; sesBtn.hidden = true; setText("rail-voice", "erişilemiyor"); });
+  }
+
+  // ================================================================ closing
+  function closeJarvis() {
+    if (closed) return;
+    if (!confirm("ZESTOLES kapatılsın mı? Çalışan bir iş varsa durdurulur.")) return;
+    stopSpeaking();
+    if (recording) stopMic();
+    setMode("kapaniyor");
+    kapatBtn.disabled = true;
+    post({ op: "kapat" }).then(function (r) {
+      if (r && r.hata) {
+        kapatBtn.disabled = false; setMode("hazir"); note(r.hata, true); return;
+      }
+      closed = true; setMode("kapandi");
+    }).catch(function () {
+      // The socket dying mid-request is the expected way this ends.
+      closed = true; setMode("kapandi");
+    });
+  }
+  kapatBtn.onclick = closeJarvis;
+
+  // =============================================================== settings
+  function ayarSatiri(item) {
+    var row = el("div", "satir");
+    row.appendChild(el("div", "ad", item.etiket));
+    var box = document.createElement("input");
+    box.type = "number";
+    box.value = item.deger;
+    if (item.en_az !== null && item.en_az !== undefined) box.min = item.en_az;
+    if (item.en_fazla !== null && item.en_fazla !== undefined) box.max = item.en_fazla;
+    row.appendChild(box);
+    var out = el("div", "sonuc");
+    if (item.aciklama) row.appendChild(el("div", "not", item.aciklama));
+    row.appendChild(out);
+
+    box.onchange = function () {
+      if (String(box.value) === String(item.deger)) return;
+      out.className = "sonuc"; out.textContent = "kaydediliyor…";
+      post({ op: "ayar_kaydet", anahtar: item.anahtar, deger: box.value })
+        .then(function (r) {
+          if (!r || r.hata) {
+            out.className = "sonuc bad";
+            out.textContent = (r && r.hata) || "kaydedilemedi";
+            box.value = item.deger;
+            return;
+          }
+          item.deger = box.value;
+          out.className = "sonuc ok";
+          out.textContent = r.etkin ? "kaydedildi" : "kaydedildi — sonraki açılışta geçerli";
+        })
+        .catch(function (e) {
+          out.className = "sonuc bad"; out.textContent = "kaydedilemedi: " + e.message;
+          box.value = item.deger;
+        });
+    };
+    return row;
+  }
+
+  function bilgiSatiri(item) {
+    var row = el("div", "satir");
+    row.appendChild(el("div", "ad", item.etiket));
+    row.appendChild(el("div", "deger", item.deger));
+    return row;
+  }
+
+  function renderAyarlar(data) {
+    var target = document.getElementById("settings-view").classList.contains("active") ? settingsHost : ayarGovde;
+    target.textContent = "";
+    if (!data || data.hata) {
+      target.appendChild(el("div", "empty", (data && data.hata) || "ayarlar alınamadı"));
+      return;
+    }
+    target.appendChild(el("h3", null, "Ayarlar"));
+    (data.ayarlar || []).forEach(function (item) { target.appendChild(ayarSatiri(item)); });
+    target.appendChild(el("h3", null, "Bu kurulum"));
+    (data.bilgi || []).forEach(function (item) { target.appendChild(bilgiSatiri(item)); });
+
+    var actions = el("div", "aksiyon");
+    var temizle = el("button", "ghost", "Konuşmayı temizle");
+    temizle.onclick = function () { clearConversation(); ayarPane.hidden = true; };
+    actions.appendChild(temizle);
+    var panel = el("a", "ghost", "Tanılama paneli");
+    panel.href = "/panel"; panel.target = "_blank"; panel.rel = "noopener";
+    actions.appendChild(panel);
+    target.appendChild(actions);
+
+    target.appendChild(el("div", "gizlilik",
+      "ZESTOLES bu bilgisayarda çalışır. Konuşma da ses de yerel modellere gider, " +
+      "dışarı gönderilmez; yalnızca web araştırması istediğinizde internete " +
+      "çıkılır. Kendi kendini değiştirme kapalıdır ve buradan açılamaz."));
+  }
+
+  function clearConversation() {
+    inner.innerHTML = "";
+    stage.classList.remove("compact");
+    greeting.textContent = "Hazırım.";
+  }
+
+  function ayarlariAc() {
+    ayarPane.hidden = false;
+    ayarBtn.setAttribute("aria-pressed", "true");
+    tasksPane.hidden = true;
+    ayarGovde.textContent = "";
+    ayarGovde.appendChild(el("div", "empty", "yükleniyor…"));
+    post({ op: "ayarlar" }).then(renderAyarlar).catch(function (e) {
+      renderAyarlar({ hata: "ayarlar alınamadı: " + e.message });
+    });
+  }
+
+  function loadSettingsView() {
+    settingsHost.textContent = "";
+    settingsHost.appendChild(el("div", "empty", "yükleniyor…"));
+    post({ op: "ayarlar" }).then(renderAyarlar).catch(function (e) {
+      renderAyarlar({ hata: "ayarlar alınamadı: " + e.message });
+    });
+  }
+
+  ayarBtn.onclick = function () {
+    openView("settings-view");
+    ayarBtn.setAttribute("aria-pressed", "true");
+  };
+
+  // =============================================================== REMINDERS
+  var remindersRefresh = document.getElementById("remindersRefresh");
+  function renderReminders(data) {
+    var host = document.getElementById("reminder-list"); host.textContent = "";
+    if (!data || data.hata) { host.appendChild(el("div", "empty-state", (data && data.hata) || "Hatırlatıcılar okunamadı.")); return; }
+    var items = data.hatirlaticilar || [];
+    if (!items.length) { host.appendChild(el("div", "empty-state", "Bekleyen hatırlatıcı yok.")); return; }
+    items.forEach(function (item) {
+      var row = el("div", "reminder-row"); row.appendChild(el("time", null, item.zaman));
+      row.appendChild(el("strong", null, item.metin)); row.appendChild(el("small", null, "#" + item.id + " · " + item.durum));
+      host.appendChild(row);
+    });
+  }
+  function refreshReminders() {
+    post({op:"hatirlaticilar"}).then(renderReminders).catch(function (e) {
+      renderReminders({hata:"Hatırlatıcılar okunamadı: " + e.message});
+    });
+  }
+  remindersRefresh.onclick = refreshReminders;
+
+  // =============================================================== TELEGRAM
+  var telegramSave = document.getElementById("telegramSave");
+  var telegramStart = document.getElementById("telegramStart");
+  var telegramStop = document.getElementById("telegramStop");
+  var telegramPair = document.getElementById("telegramPair");
+  var telegramDisconnect = document.getElementById("telegramDisconnect");
+  function telegramKv(label, value) {
+    var row = el("div", "kv"); row.appendChild(el("span", null, label));
+    row.appendChild(el("b", null, value)); return row;
+  }
+  function renderTelegram(data) {
+    var status = document.getElementById("telegram-status");
+    var logBox = document.getElementById("telegram-log");
+    if (!status || !logBox) return;
+    status.textContent = "";
+    if (!data || data.hata) {
+      status.appendChild(el("div", "empty-state", (data && data.hata) || "Telegram durumu alınamadı.")); return;
+    }
+    status.appendChild(telegramKv("Yapılandırma", data.yapilandirildi ? "hazır" : "gerekli"));
+    status.appendChild(telegramKv("Dinleyici", data.calisiyor ? "aktif" : "kapalı"));
+    status.appendChild(telegramKv("Sahip", data.eslesti ? "doğrulandı" : "eşleştirilmedi"));
+    status.appendChild(telegramKv("Bot", data.bot ? "@" + data.bot : "—"));
+    if (data.hata) status.appendChild(telegramKv("Son hata", data.hata));
+    setText("mission-telegram", data.calisiyor ? "aktif" : (data.yapilandirildi ? "hazır" : "yapılandırılmadı"));
+    logBox.textContent = "";
+    var messages = data.mesajlar || [];
+    if (!messages.length) logBox.appendChild(el("div", "empty-state", "Mesaj akışı bekleniyor."));
+    messages.slice().reverse().forEach(function (item) {
+      var msg = el("div", "telegram-msg", item.metin); msg.dataset.dir = item.yon || "system";
+      msg.title = new Date((item.zaman || 0) * 1000).toLocaleString("tr-TR"); logBox.appendChild(msg);
+    });
+  }
+  function refreshTelegram() {
+    post({ op: "telegram_durum" }).then(renderTelegram).catch(function (e) {
+      renderTelegram({ hata: "Telegram durumu alınamadı: " + e.message });
+    });
+  }
+  function telegramAction(payload, done) {
+    var out = document.getElementById("telegram-result");
+    out.className = "note"; out.textContent = "işleniyor…";
+    post(payload).then(function (r) {
+      if (!r || r.hata || r.ok === false) {
+        out.className = "note bad"; out.textContent = (r && (r.hata || r.sebep)) || "işlem başarısız"; return;
+      }
+      out.textContent = "tamamlandı"; if (done) done(r); refreshTelegram();
+    }).catch(function (e) { out.className = "note bad"; out.textContent = e.message; });
+  }
+  telegramSave.onclick = function () {
+    var box = document.getElementById("telegram-token");
+    telegramAction({ op:"telegram_ayarla", anahtar:box.value }, function () { box.value = ""; });
+  };
+  telegramStart.onclick = function () { telegramAction({op:"telegram_baslat"}); };
+  telegramStop.onclick = function () { telegramAction({op:"telegram_durdur"}); };
+  telegramPair.onclick = function () {
+    telegramAction({op:"telegram_eslestir"}, function (r) {
+      var box = document.getElementById("telegram-pair-result"); box.textContent = "";
+      box.appendChild(el("div", "pair-code", r.kod));
+      box.appendChild(el("div", "note", "Telegram'da " + r.komut + " gönderin. Kod 10 dakika geçerlidir."));
+    });
+  };
+  telegramDisconnect.onclick = function () {
+    if (confirm("Telegram bağlantısı ve eşleştirilmiş sahip kaldırılsın mı?")) telegramAction({op:"telegram_baglantiyi_kes"});
+  };
+
+  // ================================================================== tasks
+  function renderTasks(items, problem) {
+    tasksList.textContent = "";
+    if (problem) { tasksList.appendChild(el("div", "empty", problem)); return; }
+    if (!items || !items.length) {
+      tasksList.appendChild(el("div", "empty", "Arka planda iş yok."));
+      return;
+    }
+    items.forEach(function (task) {
+      var row = el("div", "task");
+      row.dataset.state = task.durum;
+      row.appendChild(el("span", "title", task.baslik));
+      row.appendChild(el("span", "state", TASK_STATE[task.durum] || task.durum));
+      if (task.durum === "pending" || task.durum === "running") {
+        var drop = el("button", "ghost", "İptal");
+        drop.onclick = function () {
+          drop.disabled = true;
+          post({ op: "gorev_iptal", id: task.id }).then(refreshTasks)
+            .catch(function () { drop.disabled = false; });
+        };
+        row.appendChild(drop);
+      }
+      var detail = task.hata || task.sonuc;
+      if (detail) row.appendChild(el("div", "detail", detail));
+      tasksList.appendChild(row);
+    });
+  }
+
+  function refreshTasks() {
+    return post({ op: "gorevler" }).then(function (r) {
+      if (r && r.gorevler) renderTasks(r.gorevler);
+      else renderTasks(null, (r && r.hata) || "görev listesi alınamadı");
+    }).catch(function (e) { renderTasks(null, "görev listesi alınamadı: " + e); });
+  }
+
+  function queueWork() {
+    var text = input.value.trim();
+    if (!text) return;
+    compact();
+    post({ op: "kuyruk", mesaj: text }).then(function (r) {
+      if (!r || r.hata) { note((r && r.hata) || "kuyruğa alınamadı", true); return; }
+      input.value = ""; input.style.height = "auto";
+      note("Arka plana alındı (#" + r.gorev + ").");
+      tasksPane.hidden = false;
+      refreshTasks();
+    }).catch(function (e) { note("Bağlantı hatası: " + e.message, true); });
+  }
+
+  laterBtn.onclick = queueWork;
+  tasksBtn.onclick = function () {
+    openView("live-view");
+    tasksPane.hidden = !tasksPane.hidden;
+    if (!tasksPane.hidden) {
+      ayarPane.hidden = true;
+      ayarBtn.setAttribute("aria-pressed", "false");
+      refreshTasks();
+    }
+  };
+
+  // ================================================================== input
+  send.onclick = submit;
+  input.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    if (e.ctrlKey) { queueWork(); } else { submit(); }
+  });
+  input.addEventListener("input", function () {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  });
+
+  stopBtn.onclick = function () {
+    // Stop means stop: the voice, the turn, and anything queued behind them.
+    ++requestEpoch;
+    busy = false;
+    stopSpeaking();
+    post({ op: "iptal" }).then(function () { note("Durdurma istendi…"); });
+  };
+
+  // ================================================================= events
+  function onEvent(env) {
+    feedEvent(env);
+    var p = env.payload || {};
+    var data = p.data || p || {};
+    var name = data.tool || "";
+    var text = p.label || "";
+    if (env.type === "system_state_changed" && data.resources) {
+      metric("cpu", data.resources.cpu); metric("ram", data.resources.ram); metric("gpu", data.resources.gpu);
+      var liveVram = (typeof data.resources.vram_used_mb === "number" && typeof data.resources.vram_total_mb === "number" && data.resources.vram_total_mb > 0)
+        ? data.resources.vram_used_mb / data.resources.vram_total_mb * 100 : null;
+      metric("vram", liveVram);
+      if (typeof data.uptime_s === "number") setText("top-uptime", duration(data.uptime_s));
+      if (data.activity) setText("mission-activity", data.activity);
+    } else if (env.type === "tool_started") {
+      live = toolCard(name || "araç", "çalışıyor…");
+      if (!closed) setMode("calisiyor");
+    } else if (env.type === "tool_finished") {
+      finishCard(live, true, text); live = null;
+    } else if (env.type === "error") {
+      if (live) { finishCard(live, false, text); live = null; }
+      else if (p.source === "assistant") { note(text, true); }
+    } else if (env.type === "assistant_turn_started") {
+      if (!closed && currentMode() !== "anliyor") setMode("dusunuyor");
+    } else if (env.type === "assistant_turn_finished") {
+      if (!busy && !playback.playing) setMode(recording ? "dinliyor" : "hazir");
+    } else if (env.type === "task_started" || env.type === "task_finished") {
+      if (!tasksPane.hidden) refreshTasks();
+    } else if (env.type === "voice_clips") {
+      var stream = data.parcalar || [];
+      enqueue(stream, data.tur);
+    }
+  }
+
+  var socket = null, retry = 1000;
+  function connect() {
+    var proto = location.protocol === "https:" ? "wss:" : "ws:";
+    try { socket = new WebSocket(proto + "//" + location.host + "/"); }
+    catch (e) { conn.textContent = "bağlanılamadı"; setMode("cevrimdisi"); return; }
+
+    socket.onopen = function () {
+      retry = 1000; conn.textContent = "bağlı";
+      setText("telemetry-link", "● ONLINE");
+      if (!busy) setMode("hazir");
+      greeting.textContent = "Hazırım.";
+    };
+    socket.onmessage = function (ev) {
+      var env;
+      try { env = JSON.parse(ev.data); } catch (e) { return; }
+      if (!env || typeof env.type !== "string") return;
+      if (env.type === "snapshot") {
+        applySnapshot((env.payload || {}).state);
+        feedEvent(env);
+        return;
+      }
+      if (env.type === "heartbeat") {
+        if (env.payload && env.payload.state) applySnapshot(env.payload.state);
+        return;
+      }
+      onEvent(env);
+    };
+    socket.onclose = function () {
+      if (closed) { conn.textContent = "kapandı"; return; }
+      conn.textContent = "bağlantı yok";
+      setText("telemetry-link", "● OFFLINE");
+      if (!busy) setMode("cevrimdisi");
+      setTimeout(connect, retry);
+      retry = Math.min(retry * 2, 15000);
+    };
+    socket.onerror = function () { try { socket.close(); } catch (e) {} };
+  }
+
+  setMode("baslatiliyor");
+  connect();
+  loadVoice();
+  post({ op: "durum" }).then(function (r) {
+    if (r && r.durum === "onay_bekliyor" && r.bekleyen) askFor(r.bekleyen);
+  }).catch(function () { /* the socket reports the truth; status is a nicety */ });
+  setInputMode("idle");
+})();
+</script>
+</body>
+</html>

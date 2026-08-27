@@ -1,0 +1,8 @@
+# ZESTOLES live Turkish speech recognition (Python 3.12).
+# TTS deliberately lives in data/ses/chatterbox-v3-env because its Torch and
+# Transformers constraints must not enter the core process.
+faster-whisper==1.2.1
+ctranslate2==4.8.1
+numpy==2.5.2
+nvidia-cublas-cu12==12.9.2.10; platform_system == "Windows"
+nvidia-cudnn-cu12==9.24.0.43; platform_system == "Windows"

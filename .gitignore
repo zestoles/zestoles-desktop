@@ -1,0 +1,53 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local overrides and credentials must never be committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+config.local.json
+
+# Runtime state, not source
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/daemon.lock
+data/control.json
+data/secrets/
+logs/
+
+# The Claude CLI runs from here and must stay empty — see README
+data/cleanroom/*
+!data/cleanroom/.gitkeep
+
+# Kullanıcı belgeleri yerel kalır; yalnızca boş klasör işareti izlenir.
+data/belgeler/*
+!data/belgeler/.gitkeep
+
+# Hafiza kasasi kisisel veri tutar - surumlemeye girmez. Hem kok hem alt
+# klasorlerdeki notlari kapsar; yalniz bos klasor isareti izlenebilir.
+vault/*.md
+vault/**/*.md
+!vault/.gitkeep
+
+# Deney alanlari - tamamen tek kullanimlik
+data/lab/
+
+# Speech models. Downloaded, not authored: about 1.7 GB of onnx and
+# ctranslate2 weights that would make every clone carry them. Recreate with
+#   python -m piper.download_voices --download-dir data/ses/piper tr_TR-dfki-medium
+#   python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', download_root='data/ses/whisper')"
+data/ses/
