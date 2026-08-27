@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/zestoles/zestoles-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/zestoles/zestoles-desktop/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/zestoles/zestoles-desktop/actions/workflows/codeql.yml/badge.svg)](https://github.com/zestoles/zestoles-desktop/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ZESTOLES, Windows üzerinde yerel modellerle çalışan Türkçe sesli masaüstü
 asistanıdır. Canlı HUD, doğal konuşma, araç kullanımı, kalıcı hafıza, kaynaklı
@@ -105,7 +106,7 @@ bir açık bildirmek için [SECURITY.md](SECURITY.md) dosyasına bakın.
 
 ## Lisans
 
-Bu ilk yayımlama paketinde lisans seçilmemiştir. Lisans dosyası eklenene kadar
-telif hakkı sahibi dışındaki kişilere kullanma, değiştirme veya dağıtma izni
-verilmiş sayılmaz. Açık kaynak yapmak istiyorsanız yayımlamadan önce GitHub'ın
-lisans seçicisinden size uygun lisansı bilinçli olarak ekleyin.
+ZESTOLES, [MIT Lisansı](LICENSE) altında açık kaynak olarak yayımlanır. Yazılımı
+ticari veya özel amaçla kullanabilir, değiştirebilir ve dağıtabilirsiniz; telif
+hakkı ve lisans bildirimlerini korumanız gerekir. Yazılım garanti verilmeden
+sunulur.
