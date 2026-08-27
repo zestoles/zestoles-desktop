@@ -1,4 +1,5 @@
-# SearXNG for JARVIS — local metasearch, no API key, no query leaving the machine.
+# SearXNG for ZESTOLES — local metasearch API without a paid API key. Search
+# queries still reach the selected upstream search engines.
 #
 #   cd C:\JARVIS\tools\searxng
 #   docker compose up -d
@@ -9,7 +10,7 @@
 services:
   searxng:
     image: searxng/searxng:latest
-    container_name: jarvis-searxng
+    container_name: zestoles-searxng
     restart: unless-stopped
     ports:
       - "127.0.0.1:8888:8080"
@@ -17,6 +18,7 @@ services:
       - ./settings.yml:/etc/searxng/settings.yml:ro
     environment:
       - SEARXNG_BASE_URL=http://127.0.0.1:8888/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?Run start.ps1 to create the local secret}
     cap_drop:
       - ALL
     cap_add:

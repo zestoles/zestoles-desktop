@@ -1,0 +1,47 @@
+name: Hata bildirimi
+description: Tekrarlanabilir bir ZESTOLES hatasını bildirin
+title: "[Hata]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Güvenlik açıklarını burada paylaşmayın. Bunun yerine Security sekmesindeki özel bildirim formunu kullanın.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Hata özeti
+      description: Ne oldu ve ne olmasını bekliyordunuz?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Yeniden üretme adımları
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Sürüm veya commit
+      placeholder: v0.1.0 veya commit kimliği
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Ortam
+      placeholder: Windows sürümü, Python sürümü, GPU ve Ollama sürümü
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Günlük veya ekran görüntüsü
+      description: Önce kişisel verileri ve erişim anahtarlarını temizleyin.
+      render: shell

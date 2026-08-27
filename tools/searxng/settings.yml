@@ -1,4 +1,4 @@
-# SearXNG settings for JARVIS.
+# SearXNG settings for ZESTOLES.
 #
 # Two entries here are load-bearing and are the usual reason the provider goes
 # quiet after a working install:
@@ -17,7 +17,9 @@
 use_default_settings: true
 
 server:
-  secret_key: "62419087f5f1743b31371aa017d2e10bc0fff5de17e41f8f10810c6afb092e96"
+  # The container overwrites this placeholder with SEARXNG_SECRET from the
+  # ignored local .env file created by start.ps1.
+  secret_key: "ultrasecretkey"
   limiter: false
   image_proxy: false
 

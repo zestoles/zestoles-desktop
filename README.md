@@ -1,5 +1,8 @@
 # ZESTOLES
 
+[![CI](https://github.com/zestoles/zestoles-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/zestoles/zestoles-desktop/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/zestoles/zestoles-desktop/actions/workflows/codeql.yml/badge.svg)](https://github.com/zestoles/zestoles-desktop/actions/workflows/codeql.yml)
+
 ZESTOLES, Windows üzerinde yerel modellerle çalışan Türkçe sesli masaüstü
 asistanıdır. Canlı HUD, doğal konuşma, araç kullanımı, kalıcı hafıza, kaynaklı
 araştırma, ajan görevleri, hatırlatıcılar ve isteğe bağlı Telegram denetimi tek
@@ -29,6 +32,7 @@ uygulamada birleşir.
 - Python 3.12 ortamını kurabilen [`uv`](https://docs.astral.sh/uv/)
 - [Ollama](https://ollama.com/)
 - Git
+- Docker Desktop (yalnız isteğe bağlı yerel SearXNG araması için)
 - NVIDIA GPU ve güncel sürücü; doğal ses için 12 GB+ VRAM önerilir
 - Yaklaşık 20 GB boş disk alanı (modeller ve iki Python ortamı dahil)
 
@@ -37,8 +41,8 @@ uygulamada birleşir.
 Depoyu klonlayın ve kökteki `KURULUM.cmd` dosyasını çalıştırın:
 
 ```powershell
-git clone https://github.com/KULLANICI_ADINIZ/zestoles.git
-cd zestoles
+git clone https://github.com/zestoles/zestoles-desktop.git
+cd zestoles-desktop
 .\KURULUM.cmd
 ```
 
@@ -48,6 +52,19 @@ indirmeleri nedeniyle ilk kurulum uzun sürebilir.
 
 Kişiselleştirmek için `config.json` içindeki `user.name` değerini değiştirin.
 Bot anahtarlarını veya başka sırları bu dosyaya yazmayın.
+
+### İsteğe bağlı yerel SearXNG
+
+Docker Desktop kuruluysa yerel arama sağlayıcısını şu şekilde başlatabilirsiniz:
+
+```powershell
+cd tools\searxng
+.\start.ps1
+```
+
+İlk çalıştırma `tools/searxng/.env` içinde rastgele bir yerel sır üretir. Bu dosya
+Git tarafından yok sayılır. Servis yalnız `127.0.0.1:8888` adresine bağlanır.
+Kapatmak için aynı klasörde `docker compose down` çalıştırın.
 
 ## Kullanım
 

@@ -1,0 +1,30 @@
+name: Özellik önerisi
+description: ZESTOLES için geliştirme fikri önerin
+title: "[Öneri]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Çözülmek istenen problem
+      description: Bu özellik hangi gerçek kullanım sorununu çözüyor?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Önerilen çözüm
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Düşünülen alternatifler
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Güvenlik
+      options:
+        - label: Önerinin yeni yetki, ağ erişimi veya kişisel veri kullanımı gerektirip gerektirmediğini açıkladım.
+          required: true
